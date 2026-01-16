@@ -1,12 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:contact_manager_app/services/location_service.dart';
+import 'package:contact_manager_app/services/user_data_service.dart';
 import 'hospital_screen.dart';
 import 'book_appointment_screen.dart';
 import 'my_appointments_screen.dart';
 import '../profile_screen.dart';
 import '../notifications_screen.dart';
 
-class PatientDashboard extends StatelessWidget {
+class PatientDashboard extends StatefulWidget {
   const PatientDashboard({super.key});
+
+  @override
+  State<PatientDashboard> createState() => _PatientDashboardState();
+}
+
+class _PatientDashboardState extends State<PatientDashboard> {
+  final TextEditingController _searchController = TextEditingController();
+  final LocationService _locationService = LocationService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocationIfNeeded();
+  }
+
+  Future<void> _loadLocationIfNeeded() async {
+    if (!UserDataService().isLocationLoaded) {
+      try {
+        final position = await _locationService.getCurrentLocation();
+        final city = await _locationService.getCityName(position.latitude, position.longitude);
+
+        UserDataService().latitude = position.latitude;
+        UserDataService().longitude = position.longitude;
+        UserDataService().cityName = city;
+
+        print('DEBUG: Location loaded on dashboard - City: $city');
+      } catch (e) {
+        print('DEBUG: Could not get location on dashboard: $e');
+      }
+    } else {
+      print('DEBUG: Location already loaded - City: ${UserDataService().cityName}');
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
@@ -95,6 +136,7 @@ class PatientDashboard extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
+                        controller: _searchController,
                         decoration: InputDecoration(
                           hintText: 'Search doctor or medicines',
                           prefixIcon: Icon(Icons.search, color: primaryColor),
@@ -106,6 +148,18 @@ class PatientDashboard extends StatelessWidget {
                             borderSide: BorderSide.none,
                           ),
                         ),
+                        onSubmitted: (query) {
+                          if (query.trim().isNotEmpty) {
+                            print('DEBUG: Search submitted from dashboard: ${query.trim()}');
+                            print('DEBUG: Current city: ${UserDataService().cityName}');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => HospitalScreen(initialQuery: query.trim()),
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ),
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../services/storage_service.dart';
+import 'package:contact_manager_app/services/auth_service.dart';
+import 'package:contact_manager_app/services/storage_service.dart';
+import 'package:contact_manager_app/services/location_service.dart';
+import 'package:contact_manager_app/services/user_data_service.dart';
 import 'dashboard/patient_dashboard.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
@@ -18,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authService = AuthService();
   final _storage = StorageService();
+  final _locationService = LocationService();
 
   bool _loading = false;
   bool _obscurePassword = true;
@@ -43,10 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _passwordController.text,
     );
 
-    setState(() {
-      _loading = false;
-    });
-
     if (!mounted) return;
 
     if (result['success'] == true) {
@@ -55,14 +54,39 @@ class _LoginScreenState extends State<LoginScreen> {
         result['refresh'] as String,
       );
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => PatientDashboard()),
-      );
+      try {
+        final position = await _locationService.getCurrentLocation();
+        final city = await _locationService.getCityName(position.latitude, position.longitude);
+
+        UserDataService().latitude = position.latitude;
+        UserDataService().longitude = position.longitude;
+        UserDataService().cityName = city;
+
+        print('DEBUG: Location saved after login - City: $city');
+      } catch (e) {
+        print('DEBUG: Could not get location: $e');
+      }
+
+      setState(() {
+        _loading = false;
+      });
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => PatientDashboard()),
+        );
+      }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['error'] ?? 'Login failed')),
-      );
+      setState(() {
+        _loading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['error'] ?? 'Login failed')),
+        );
+      }
     }
   }
 
