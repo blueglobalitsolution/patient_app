@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/contact.dart';
+import '../utils/constants.dart';
 
 class ContactService {
-  final String baseUrl = 'http://192.168.1.208:8000/api/contacts/';
-  //final String baseUrl = 'http://192.168.0.109:8000/api/contacts/';
+  final String baseUrl = '${ApiConstants.baseUrl}/api/contacts/';
 
   Future<List<Contact>> getContacts() async {
     final response = await http.get(Uri.parse(baseUrl));

@@ -10,10 +10,12 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  String name = '';
+  String fullName = '';
   String email = '';
-  String phone = '';
-  String city = '';
+  String phoneNumber = '';
+  String address = '';
+  String age = '';
+  String gender = 'Male';  // Default gender
   String password = '';
 
   final AuthService _authService = AuthService();
@@ -28,7 +30,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         title: Text("Register", style: TextStyle(color: Colors.white)),
         centerTitle: true,
       ),
-
       body: Center(
         child: Container(
           padding: EdgeInsets.all(20),
@@ -44,7 +45,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ],
           ),
-
           child: Form(
             key: _formKey,
             child: ListView(
@@ -59,26 +59,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-
                 SizedBox(height: 25),
 
-                // Input Fields
-                buildInput("Name", Icons.person, (v) => name = v!, "Enter your name"),
+                buildInput("Full Name", Icons.person, (v) => fullName = v!, "Enter your full name"),
                 SizedBox(height: 12),
 
                 buildInput("Email", Icons.email, (v) => email = v!, "Enter your email"),
                 SizedBox(height: 12),
 
-                buildInput("Phone", Icons.phone, (v) => phone = v!, "Enter phone number"),
+                buildInput("Phone Number", Icons.phone, (v) => phoneNumber = v!, "Enter 10-digit phone number"),
                 SizedBox(height: 12),
 
-                buildInput("City", Icons.location_city, (v) => city = v!, "Enter city"),
+                buildInput("Address", Icons.location_city, (v) => address = v!, "Enter your address"),
+                SizedBox(height: 12),
+
+                buildInput("Age", Icons.cake, (v) => age = v!, "Enter your age"),
+                SizedBox(height: 12),
+
+                DropdownButtonFormField<String>(
+                  value: gender,
+                  decoration: InputDecoration(
+                    labelText: "Gender",
+                    prefixIcon: Icon(Icons.person, color: Color(0xFF8c6239)),
+                    filled: true,
+                    fillColor: Color(0xfff7f7f7),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  items: ['Male', 'Female', 'Other']
+                      .map((g) => DropdownMenuItem(
+                    value: g,
+                    child: Text(g),
+                  ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => gender = value);
+                    }
+                  },
+                  validator: (value) => (value == null || value.isEmpty) ? 'Select gender' : null,
+                ),
                 SizedBox(height: 12),
 
                 buildPasswordInput(),
                 SizedBox(height: 20),
 
-                // Register Button
                 _isLoading
                     ? Center(child: CircularProgressIndicator())
                     : ElevatedButton(
@@ -118,7 +144,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Input Field Builder
   Widget buildInput(String label, IconData icon, Function(String?) onSaved, String validationMsg) {
     return TextFormField(
       decoration: InputDecoration(
@@ -126,16 +151,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         prefixIcon: Icon(icon, color: Color(0xFF8c6239)),
         filled: true,
         fillColor: Color(0xfff7f7f7),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      validator: (value) => value!.isEmpty ? validationMsg : null,
+      validator: (value) => value == null || value.isEmpty ? validationMsg : null,
       onSaved: onSaved,
     );
   }
 
-  // Password Field
   Widget buildPasswordInput() {
     return TextFormField(
       obscureText: true,
@@ -144,11 +166,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         prefixIcon: Icon(Icons.lock, color: Color(0xFF8c6239)),
         filled: true,
         fillColor: Color(0xfff7f7f7),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      validator: (value) => value!.length < 6 ? "Password must be 6+ chars" : null,
+      validator: (value) => (value == null || value.length < 6) ? "Password must be 6+ chars" : null,
       onSaved: (value) => password = value ?? '',
     );
   }
@@ -159,28 +179,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       setState(() => _isLoading = true);
 
-      bool success = await _authService.register(
-        name,
+      // Call AuthService with updated parameters
+      final result = await _authService.register(
+        fullName,
         email,
-        phone,
-        city,
+        phoneNumber,
+        address,
+        age,
+        gender,
         password,
       );
 
       setState(() => _isLoading = false);
 
-      if (success) {
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Registration successful! Please login.')),
+        );
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => LoginScreen()),
         );
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration successful! Please login.')),
-        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed')),
+          SnackBar(content: Text(result['error'] ?? 'Registration failed')),
         );
       }
     }
