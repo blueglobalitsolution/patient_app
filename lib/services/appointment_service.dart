@@ -23,9 +23,9 @@ class AppointmentService {
   }
 
   Future<http.Response> _executeWithRefresh(
-    Future<http.Response> request,
+    Future<http.Response> Function() requestFn,
   ) async {
-    var response = await request;
+    var response = await requestFn();
 
     if (response.statusCode == 401) {
       if (_isRefreshing) {
@@ -36,7 +36,7 @@ class AppointmentService {
       try {
         final newToken = await _auth.refreshAccessToken();
         if (newToken != null) {
-          response = await request;
+          response = await requestFn();
         }
       } finally {
         _isRefreshing = false;
@@ -57,7 +57,7 @@ class AppointmentService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.get(uri, headers: headers),
+      () => http.get(uri, headers: headers),
     );
 
     if (res.statusCode == 200) {
@@ -69,8 +69,8 @@ class AppointmentService {
   }
 
   Future<List<SlotDay>> fetchSlots(int doctorId, {String? date}) async {
-    String url = '${ApiConstants.baseUrl}/api/appointments/api/mobile-slots/$doctorId/';
-    
+    String url = '${ApiConstants.baseUrl}/appointments/api/mobile-slots/$doctorId/';
+
     if (date != null) {
       url += '?date=$date';
     }
@@ -78,7 +78,7 @@ class AppointmentService {
     final uri = Uri.parse(url);
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.get(uri, headers: headers),
+      () => http.get(uri, headers: headers),
     );
 
     if (res.statusCode == 200) {
@@ -89,24 +89,35 @@ class AppointmentService {
     throw Exception('Failed to load slots');
   }
 
-  Future<String> bookAppointment({
-    required int doctorId,
-    required int slotId,
-    required String date,
-    String reason = 'Consultation',
+  Future<DoctorSlotsResponse> fetchMobileDoctorSlots(int doctorId) async {
+    final uri = Uri.parse(
+      '${ApiConstants.baseUrl}/appointments/api/mobile-doctor-slots/$doctorId/',
+    );
+
+    final headers = await _headers(auth: true);
+    final res = await _executeWithRefresh(
+      () => http.get(uri, headers: headers),
+    );
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return DoctorSlotsResponse.fromJson(data);
+    }
+    throw Exception('Failed to load doctor slots');
+  }
+
+  Future<Map<String, dynamic>> bookAppointment({
+    required int availabilityId,
   }) async {
     final uri = Uri.parse('${ApiConstants.baseUrl}/mobile/book/');
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.post(
+      () => http.post(
         uri,
         headers: headers,
         body: jsonEncode({
-          'doctor_id': doctorId,
-          'slot_id': slotId,
-          'date': date,
-          'reason': reason,
+          'availability_id': availabilityId,
         }),
       ),
     );
@@ -114,7 +125,7 @@ class AppointmentService {
     final data = jsonDecode(res.body) as Map<String, dynamic>;
 
     if (res.statusCode == 200 || res.statusCode == 201) {
-      return data['message'] ?? 'Appointment booked successfully';
+      return data;
     } else {
       throw Exception(data['error'] ?? 'Booking failed');
     }
@@ -125,7 +136,7 @@ class AppointmentService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.get(uri, headers: headers),
+      () => http.get(uri, headers: headers),
     );
 
     if (res.statusCode == 200) {
@@ -140,7 +151,7 @@ class AppointmentService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.post(uri, headers: headers),
+      () => http.post(uri, headers: headers),
     );
 
     if (res.statusCode != 200 && res.statusCode != 204) {

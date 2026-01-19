@@ -52,3 +52,79 @@ class Hospital {
     return '${(distance / 1000).toStringAsFixed(1)} km';
   }
 }
+
+class ApprovedHospital {
+  final int id;
+  final String name;
+  final String? address;
+  final String? city;
+  final String? state;
+  final String? pincode;
+  final String? phone;
+  final String? email;
+  final String? logo;
+  final String? description;
+  final bool isActive;
+  final int? totalDoctors;
+  final int? totalDepartments;
+  final String? createdAt;
+  final String? updatedAt;
+
+  ApprovedHospital({
+    required this.id,
+    required this.name,
+    this.address,
+    this.city,
+    this.state,
+    this.pincode,
+    this.phone,
+    this.email,
+    this.logo,
+    this.description,
+    this.isActive = true,
+    this.totalDoctors,
+    this.totalDepartments,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory ApprovedHospital.fromJson(Map<String, dynamic> json) {
+    return ApprovedHospital(
+      id: json['id'] ?? 0,
+      name: json['name'] ?? '',
+      address: json['address'],
+      city: json['city'],
+      state: json['state'],
+      pincode: json['pincode'],
+      phone: json['phone'],
+      email: json['email'],
+      logo: json['logo'],
+      description: json['description'],
+      isActive: json['is_active'] ?? json['active'] ?? true,
+      totalDoctors: json['total_doctors'],
+      totalDepartments: json['total_departments'],
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'address': address,
+      'city': city,
+      'state': state,
+      'pincode': pincode,
+      'phone': phone,
+      'email': email,
+      'logo': logo,
+      'description': description,
+      'is_active': isActive,
+      'total_doctors': totalDoctors,
+      'total_departments': totalDepartments,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+    };
+  }
+}

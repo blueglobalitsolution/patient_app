@@ -23,9 +23,9 @@ class PatientService {
   }
 
   Future<http.Response> _executeWithRefresh(
-    Future<http.Response> request,
+    Future<http.Response> Function() requestFn,
   ) async {
-    var response = await request;
+    var response = await requestFn();
 
     if (response.statusCode == 401) {
       if (_isRefreshing) {
@@ -36,7 +36,7 @@ class PatientService {
       try {
         final newToken = await _auth.refreshAccessToken();
         if (newToken != null) {
-          response = await request;
+          response = await requestFn();
         }
       } finally {
         _isRefreshing = false;
@@ -51,7 +51,7 @@ class PatientService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.get(uri, headers: headers),
+      () => http.get(uri, headers: headers),
     );
 
     if (res.statusCode == 200) {
@@ -66,7 +66,7 @@ class PatientService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.patch(
+      () => http.patch(
         uri,
         headers: headers,
         body: jsonEncode(data),
@@ -85,7 +85,7 @@ class PatientService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.get(uri, headers: headers),
+      () => http.get(uri, headers: headers),
     );
 
     if (res.statusCode == 200) {
@@ -100,7 +100,7 @@ class PatientService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.get(uri, headers: headers),
+      () => http.get(uri, headers: headers),
     );
 
     if (res.statusCode == 200) {
@@ -115,7 +115,7 @@ class PatientService {
 
     final headers = await _headers(auth: true);
     final res = await _executeWithRefresh(
-      http.patch(uri, headers: headers),
+      () => http.patch(uri, headers: headers),
     );
 
     if (res.statusCode != 200 && res.statusCode != 204) {

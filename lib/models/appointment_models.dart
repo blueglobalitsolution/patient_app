@@ -1,5 +1,31 @@
 import 'package:flutter/material.dart';
 
+class DoctorDetails {
+  final int id;
+  final String name;
+  final String? specialization;
+  final String? hospitalName;
+  final String? address;
+
+  DoctorDetails({
+    required this.id,
+    required this.name,
+    this.specialization,
+    this.hospitalName,
+    this.address,
+  });
+
+  factory DoctorDetails.fromJson(Map<String, dynamic> json) {
+    return DoctorDetails(
+      id: json['id'],
+      name: json['name'] ?? '',
+      specialization: json['specialization'],
+      hospitalName: json['hospital_name'],
+      address: json['address'],
+    );
+  }
+}
+
 class Doctor {
   final int id;
   final String name;
@@ -20,23 +46,108 @@ class Doctor {
   }
 }
 
+class DoctorSlotsResponse {
+  final DoctorDetails doctor;
+  final List<SlotDay> days;
+
+  DoctorSlotsResponse({
+    required this.doctor,
+    required this.days,
+  });
+
+  factory DoctorSlotsResponse.fromJson(Map<String, dynamic> json) {
+    final daysJson = json['days'] as List<dynamic>? ?? 
+                    json['availability'] as List<dynamic>? ?? 
+                    json['available_slots'] as List<dynamic>? ?? 
+                    json['slots'] as List<dynamic>? ?? [];
+    
+    print('DEBUG: DoctorSlotsResponse parsing:');
+    print('  Doctor: ${json['doctor']}');
+    print('  Days count: ${daysJson.length}');
+    
+    final doctorData = json['doctor'] ?? json;
+    
+    return DoctorSlotsResponse(
+      doctor: DoctorDetails.fromJson(doctorData),
+      days: daysJson.map((e) => SlotDay.fromJson(e)).toList(),
+    );
+  }
+}
+
+  String _convertTo12HourFormat(String time24) {
+    if (time24.isEmpty) return time24;
+    
+    if (time24.toUpperCase().contains('AM') || time24.toUpperCase().contains('PM')) {
+      return time24;
+    }
+    
+    final parts = time24.trim().split(':');
+    if (parts.length < 2) return time24;
+    
+    int hour = int.tryParse(parts[0]) ?? 0;
+    final minute = parts[1].length > 2 ? parts[1].substring(0, 2) : parts[1];
+    final period = hour >= 12 ? 'PM' : 'AM';
+    
+    if (hour == 0) {
+      hour = 12;
+    } else if (hour > 12) {
+      hour -= 12;
+    }
+    
+    final hourStr = hour.toString().padLeft(2, '0');
+    return '$hourStr:$minute $period';
+  }
+
 class Slot {
   final int id;
   final String start;
   final String end;
+  final String displayTime;
 
   Slot({
     required this.id,
     required this.start,
     required this.end,
+    this.displayTime = '',
   });
 
   factory Slot.fromJson(Map<String, dynamic> json) {
+    final id = json['id'] ?? json['availability_id'] ?? 0;
+    final timeField = json['time'] ?? json['start_time'] ?? json['start'] ?? '';
+    final endField = json['end'] ?? json['end_time'] ?? '';
+    
+    String displayTime = '';
+    String startTime = '';
+    String endTime = '';
+    
+    if (timeField.contains('-') && !timeField.contains(':')) {
+      final parts = timeField.split(' - ');
+      startTime = parts.isNotEmpty ? _convertTo12HourFormat(parts[0].trim()) : '';
+      endTime = parts.length > 1 ? _convertTo12HourFormat(parts[1].trim()) : '';
+      displayTime = timeField;
+    } else {
+      startTime = _convertTo12HourFormat(timeField);
+      endTime = _convertTo12HourFormat(endField);
+      displayTime = startTime;
+    }
+    
+    if (startTime.isEmpty && endTime.isEmpty && json.toString().isNotEmpty) {
+      displayTime = json.toString();
+      startTime = 'Slot';
+      endTime = json.toString();
+    }
+    
     return Slot(
-      id: json['id'],
-      start: json['start'] ?? '',
-      end: json['end'] ?? '',
+      id: id,
+      start: startTime,
+      end: endTime,
+      displayTime: displayTime,
     );
+  }
+  
+  @override
+  String toString() {
+    return 'Slot(id: $id, start: $start, end: $end, displayTime: $displayTime)';
   }
 }
 
@@ -52,10 +163,23 @@ class SlotDay {
   });
 
   factory SlotDay.fromJson(Map<String, dynamic> json) {
-    final slotsJson = json['slots'] as List<dynamic>? ?? [];
+    final slotsJson = json['slots'] as List<dynamic>? ?? 
+                    json['available_slots'] as List<dynamic>? ?? 
+                    json['timeslots'] as List<dynamic>? ?? [];
+    final dateValue = json['date'] ?? json['day'] ?? '';
+    final labelValue = json['label'] ?? json['day_name'] ?? '';
+    
+    print('DEBUG: SlotDay parsing:');
+    print('  Date: $dateValue');
+    print('  Label: $labelValue');
+    print('  Slots count: ${slotsJson.length}');
+    for (var i = 0; i < slotsJson.length && i < 3; i++) {
+      print('  Slot $i: ${slotsJson[i]}');
+    }
+    
     return SlotDay(
-      date: json['date'] ?? '',
-      label: json['label'] ?? '',
+      date: dateValue,
+      label: labelValue,
       slots: slotsJson.map((e) => Slot.fromJson(e)).toList(),
     );
   }

@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import '../../models/appointment_models.dart';
 import '../../services/appointment_service.dart';
 import 'patient_dashboard.dart';
-import 'hospital_screen.dart';
+import 'hospital_list_screen.dart';
+import 'booking_confirmation_screen.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
-  const BookAppointmentScreen({super.key});
+  final int? doctorId;
+
+  const BookAppointmentScreen({super.key, this.doctorId});
 
   @override
   State<BookAppointmentScreen> createState() => _BookAppointmentScreenState();
@@ -21,8 +24,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   bool _loadingSlots = false;
   bool _booking = false;
   List<Doctor> _doctors = [];
-  Doctor? _selectedDoctor;
+  dynamic _selectedDoctor;
   List<SlotDay> _days = [];
+  SlotDay? _selectedDay;
   DateTime? _selectedDate;
   Slot? _selectedSlot;
 
@@ -32,7 +36,11 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDoctors();
+    if (widget.doctorId != null) {
+      _loadDoctorSlots(widget.doctorId!);
+    } else {
+      _loadDoctors();
+    }
   }
 
   Future<void> _loadDoctors() async {
@@ -65,22 +73,27 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
-  Future<void> _loadSlots(Doctor doctor) async {
+  Future<void> _loadSlots(dynamic doctor) async {
     setState(() {
       _selectedDoctor = doctor;
       _loadingSlots = true;
       _days = [];
+      _selectedDay = null;
       _selectedSlot = null;
     });
     try {
+      final doctorId = doctor is Doctor ? doctor.id : doctor.id;
       final days = await _service.fetchSlots(
-        doctor.id,
+        doctorId,
         date: _selectedDate != null
             ? '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}'
             : null,
       );
       setState(() {
         _days = days;
+        if (_days.isNotEmpty) {
+          _selectedDay = _days.first;
+        }
       });
     } catch (e) {
       if (mounted) {
@@ -114,42 +127,101 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  Future<void> _loadDoctorSlots(int doctorId) async {
+    setState(() {
+      _loadingSlots = true;
+      _days = [];
+      _selectedDay = null;
+      _selectedSlot = null;
+    });
+    try {
+      final response = await _service.fetchMobileDoctorSlots(doctorId);
+      print('DEBUG: Loaded ${response.days.length} days');
+      for (var day in response.days) {
+        print('DEBUG: Day ${day.label} (${day.date}) has ${day.slots.length} slots');
+        for (var slot in day.slots) {
+          print('DEBUG:   Slot: id=${slot.id}, start=${slot.start}, end=${slot.end}, displayTime=${slot.displayTime}');
+        }
+      }
+      setState(() {
+        _selectedDoctor = response.doctor;
+        _days = response.days;
+        if (_days.isNotEmpty) {
+          _selectedDay = _days.first;
+          print('DEBUG: Set _selectedDay to ${_selectedDay!.label} with ${_selectedDay!.slots.length} slots');
+        }
+      });
+    } catch (e) {
+      print('DEBUG: Error loading slots: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load doctor slots: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingSlots = false;
+        });
+      }
+    }
+  }
+
   Future<void> _bookSlot(Slot slot) async {
-    if (_selectedDoctor == null || _selectedDate == null) {
+    if (_selectedDoctor == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a doctor and date')),
+        const SnackBar(content: Text('Please wait for doctor details to load')),
       );
       return;
     }
 
     setState(() {
       _booking = true;
-      _selectedSlot = slot;
     });
     try {
-      final dateStr = '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}';
-      
-      final msg = await _service.bookAppointment(
-        doctorId: _selectedDoctor!.id,
-        slotId: slot.id,
-        date: dateStr,
-        reason: _reasonController.text,
+      final response = await _service.bookAppointment(
+        availabilityId: slot.id,
       );
-      
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
+        setState(() {
+          _booking = false;
+        });
+
+        final doctor = _selectedDoctor is DoctorDetails 
+            ? _selectedDoctor 
+            : DoctorDetails(
+                id: (_selectedDoctor as Doctor).id,
+                name: (_selectedDoctor as Doctor).name,
+                specialization: (_selectedDoctor as Doctor).specialization,
+              );
+
+        final tokenNum = response['token_number'] is int 
+            ? response['token_number'] as int 
+            : int.tryParse(response['token_number']?.toString() ?? '0') ?? 0;
+
+        final dateValue = response['date']?.toString() ?? '';
+        final messageValue = response['message']?.toString() ?? 'Appointment booked successfully';
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BookingConfirmationScreen(
+              tokenNumber: tokenNum,
+              doctorName: doctor.name,
+              doctorSpecialization: doctor.specialization ?? '',
+              date: dateValue,
+              time: slot.displayTime,
+              message: messageValue,
+            ),
+          ),
         );
-        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Booking failed: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
         setState(() {
           _booking = false;
           _selectedSlot = null;
@@ -158,267 +230,726 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
+  String _getShift(String timeStr) {
+    final time = timeStr.toLowerCase();
+    if (time.contains('am')) {
+      final hour = int.tryParse(time.split(':')[0]) ?? 0;
+      if (hour < 12) return 'Morning';
+    } else if (time.contains('pm')) {
+      final hour = int.tryParse(time.split(':')[0]) ?? 0;
+      if (hour == 12 || hour < 5) return 'Afternoon';
+      return 'Evening';
+    }
+    return '';
+  }
+
+  IconData _getShiftIcon(String shift) {
+    switch (shift) {
+      case 'Morning':
+        return Icons.wb_sunny;
+      case 'Afternoon':
+        return Icons.wb_twilight;
+      case 'Evening':
+        return Icons.bedtime;
+      default:
+        return Icons.access_time;
+    }
+  }
+
+  Map<String, List<Slot>> _groupSlotsByShift(List<Slot> slots) {
+    final grouped = <String, List<Slot>>{};
+    for (var slot in slots) {
+      final shift = _getShift(slot.start);
+      if (shift.isNotEmpty) {
+        grouped.putIfAbsent(shift, () => []);
+        grouped[shift]!.add(slot);
+      }
+    }
+    return grouped;
+  }
+
+  String _formatDateForDisplay(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length >= 3) {
+        final year = int.tryParse(parts[0]) ?? 2024;
+        final month = int.tryParse(parts[1]) ?? 1;
+        final day = int.tryParse(parts[2]) ?? 1;
+        if (month >= 1 && month <= 12) {
+          final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+          final dateTime = DateTime(year, month, day);
+          final dayOfWeek = days[dateTime.weekday - 1];
+          return '$dayOfWeek $day ${months[month - 1]} $year';
+        }
+      }
+    } catch (e) {
+      print('DEBUG: Error parsing date $dateStr: $e');
+    }
+    return dateStr;
+  }
+
+  Widget _buildDirectBookingView() {
+    return _loadingSlots
+        ? Center(child: CircularProgressIndicator(color: primaryColor))
+        : _selectedDoctor == null
+            ? Center(child: Text('Loading doctor details...'))
+            : SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildDoctorDetailsCard(),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Select a Time',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDaysCalendar(),
+                      const SizedBox(height: 16),
+                      _buildSlotsList(),
+                      if (_selectedSlot != null) ...[
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _booking ? null : () => _bookSlot(_selectedSlot!),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: _booking
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Book Now',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+  }
+
+  Widget _buildDoctorDetailsCard() {
+    final doctor = _selectedDoctor;
+    final name = doctor is DoctorDetails ? doctor.name : (doctor as Doctor).name;
+    final specialization = doctor is DoctorDetails ? doctor.specialization : (doctor as Doctor).specialization;
+    final hospital = doctor is DoctorDetails ? doctor.hospitalName : null;
+    final address = doctor is DoctorDetails ? doctor.address : null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.person, color: primaryColor, size: 30),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    if (specialization != null)
+                      Text(
+                        specialization,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (hospital != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.local_hospital, size: 18, color: primaryColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hospital,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (address != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 18, color: primaryColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    address,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDaysCalendar() {
+    return SizedBox(
+      height: 80,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _days.length,
+        itemBuilder: (context, index) {
+          final day = _days[index];
+          final isSelected = day == _selectedDay;
+          final displayDate = _formatDateForDisplay(day.date);
+          final dateParts = displayDate.split(' ');
+          final dayLabel = day.label.isNotEmpty ? day.label : (dateParts.isNotEmpty ? dateParts[0] : '');
+          final dayNum = dateParts.length > 1 ? dateParts[1] : '';
+          final monthName = dateParts.length > 2 ? dateParts[2] : '';
+          
+          return Padding(
+            padding: EdgeInsets.only(right: index == _days.length - 1 ? 0 : 8),
+            child: GestureDetector(
+              onTap: () {
+                print('DEBUG: Tapped on day ${day.label} (${day.date}) with ${day.slots.length} slots');
+                setState(() {
+                  _selectedDay = day;
+                  _selectedSlot = null;
+                });
+              },
+              child: Container(
+                width: 70,
+                decoration: BoxDecoration(
+                  color: isSelected ? primaryColor : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? primaryColor : Colors.grey.shade300,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      dayLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dayNum,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : primaryColor,
+                      ),
+                    ),
+                    if (monthName.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        monthName,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: isSelected ? Colors.white70 : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSlotsList() {
+    final selectedDaySlots = _selectedDay?.slots ?? _days.firstOrNull?.slots ?? [];
+    
+    print('DEBUG: _buildSlotsList - selectedDaySlots length: ${selectedDaySlots.length}');
+    print('DEBUG: _selectedDay: ${_selectedDay?.date}');
+    
+    if (selectedDaySlots.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: const Text('No slots available for this day'),
+      );
+    }
+
+    final shiftGroups = _groupSlotsByShift(selectedDaySlots);
+    print('DEBUG: Shift groups: ${shiftGroups.keys}');
+    
+    final shifts = ['Morning', 'Afternoon', 'Evening'];
+    bool hasAnyShiftSlots = false;
+    for (var shift in shifts) {
+      if ((shiftGroups[shift]?.length ?? 0) > 0) {
+        hasAnyShiftSlots = true;
+        break;
+      }
+    }
+
+    if (!hasAnyShiftSlots) {
+      print('DEBUG: No slots matched any shift, showing all slots');
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: selectedDaySlots.map((slot) {
+          final isSelected = _selectedSlot?.id == slot.id;
+          final isBooking = _booking && isSelected;
+                final timeDisplay = slot.displayTime.isNotEmpty ? slot.displayTime : slot.start;
+          return GestureDetector(
+            onTap: isBooking ? null : () {
+              setState(() {
+                _selectedSlot = slot;
+              });
+            },
+            child: Container(
+              width: 100,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? primaryColor : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected ? primaryColor : Colors.grey.shade300,
+                ),
+              ),
+              child: Center(
+                child: isBooking
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        timeDisplay,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : Colors.black87,
+                        ),
+                      ),
+              ),
+            ),
+          );
+        }).toList(),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: shifts.map((shift) {
+        final shiftSlots = shiftGroups[shift] ?? [];
+        print('DEBUG: Shift $shift has ${shiftSlots.length} slots');
+        
+        if (shiftSlots.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    _getShiftIcon(shift),
+                    size: 20,
+                    color: const Color(0xFF8c6239),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    shift,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: shiftSlots.map((slot) {
+                final isSelected = _selectedSlot?.id == slot.id;
+                final isBooking = _booking && isSelected;
+                final timeDisplay = slot.displayTime.isNotEmpty ? slot.displayTime : slot.start;
+                return GestureDetector(
+                  onTap: isBooking ? null : () {
+                    setState(() {
+                      _selectedSlot = slot;
+                    });
+                  },
+                  child: Container(
+                    width: 100,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? primaryColor : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected ? primaryColor : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Center(
+                      child: isBooking
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              timeDisplay,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildSearchAndSelectView() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(
+                controller: _departmentController,
+                decoration: const InputDecoration(
+                  labelText: 'Department (e.g. Cardiology)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _reasonController,
+                decoration: const InputDecoration(
+                  labelText: 'Reason for Visit',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: _selectDate,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Select Date',
+                          border: OutlineInputBorder(),
+                        ),
+                        child: Text(
+                          _selectedDate != null
+                              ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                              : 'Tap to select date',
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _loadingDoctors ? null : _loadDoctors,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                    ),
+                    child: _loadingDoctors
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Search'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _loadingDoctors
+                    ? const Center(child: CircularProgressIndicator())
+                    : _doctors.isEmpty
+                        ? const Center(child: Text('No doctors found'))
+                        : ListView.builder(
+                            itemCount: _doctors.length,
+                            itemBuilder: (context, index) {
+                              final d = _doctors[index];
+                              final selected = _selectedDoctor is Doctor && d.id == (_selectedDoctor as Doctor).id;
+                              return ListTile(
+                                title: Text(d.name),
+                                subtitle: Text(d.specialization),
+                                selected: selected,
+                                onTap: () => _loadSlots(d),
+                              );
+                            },
+                          ),
+              ),
+              Expanded(
+                flex: 3,
+                child: _loadingSlots
+                    ? const Center(child: CircularProgressIndicator())
+                    : _selectedDoctor == null
+                        ? const Center(
+                            child: Text('Select a doctor to see slots'),
+                          )
+                        : _days.isEmpty
+                            ? const Center(
+                                child: Text('No slots available'),
+                              )
+                            : ListView.builder(
+                                itemCount: _days.length,
+                                itemBuilder: (context, index) {
+                                  final day = _days[index];
+                                  return ExpansionTile(
+                                    title: Text('${day.label} (${day.date})'),
+                                    children: day.slots.isEmpty
+                                        ? const [
+                                            Padding(
+                                              padding: EdgeInsets.all(8.0),
+                                              child: Text('No slots available'),
+                                            ),
+                                          ]
+                                        : day.slots.map((slot) {
+                                            final isSelected = _selectedSlot?.id == slot.id;
+                                            final isBooking = _booking && isSelected;
+                                            final timeDisplay = slot.displayTime.isNotEmpty ? slot.displayTime : '${slot.start} - ${slot.end}';
+                                            return ListTile(
+                                              title: Text(timeDisplay),
+                                              trailing: isBooking
+                                                  ? const SizedBox(
+                                                      width: 20,
+                                                      height: 20,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                    )
+                                                  : isSelected
+                                                      ? const Icon(
+                                                          Icons.check_circle,
+                                                          color: Colors.green,
+                                                        )
+                                                      : null,
+                                              onTap: isBooking ? null : () => _bookSlot(slot),
+                                            );
+                                          }).toList(),
+                                  );
+                                },
+                              ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hi, Patient 👋',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Stay safe and follow your doctor\'s advice',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(8),
-                    child: Icon(Icons.notifications_none, color: primaryColor),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: _departmentController,
-                          decoration: const InputDecoration(
-                            labelText: 'Department (e.g. Cardiology)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _reasonController,
-                          decoration: const InputDecoration(
-                            labelText: 'Reason for Visit',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: InkWell(
-                                onTap: _selectDate,
-                                child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Select Date',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  child: Text(
-                                    _selectedDate != null
-                                        ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
-                                        : 'Tap to select date',
-                                  ),
-                                ),
+                            Text(
+                              'Hi, Patient 👋',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: _loadingDoctors ? null : _loadDoctors,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                              ),
-                              child: _loadingDoctors
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text('Search'),
+                            SizedBox(height: 4),
+                            Text(
+                              'Stay safe and follow your doctor\'s advice',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: _loadingDoctors
-                              ? const Center(child: CircularProgressIndicator())
-                              : _doctors.isEmpty
-                                  ? const Center(child: Text('No doctors found'))
-                                  : ListView.builder(
-                                      itemCount: _doctors.length,
-                                      itemBuilder: (context, index) {
-                                        final d = _doctors[index];
-                                        final selected = d.id == _selectedDoctor?.id;
-                                        return ListTile(
-                                          title: Text(d.name),
-                                          subtitle: Text(d.specialization),
-                                          selected: selected,
-                                          onTap: () => _loadSlots(d),
-                                        );
-                                      },
-                                    ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          flex: 3,
-                          child: _loadingSlots
-                              ? const Center(child: CircularProgressIndicator())
-                              : _selectedDoctor == null
-                                  ? const Center(
-                                      child: Text('Select a doctor to see slots'),
-                                    )
-                                  : _days.isEmpty
-                                      ? const Center(
-                                          child: Text('No slots available'),
-                                        )
-                                      : ListView.builder(
-                                          itemCount: _days.length,
-                                          itemBuilder: (context, index) {
-                                            final day = _days[index];
-                                            return ExpansionTile(
-                                              title: Text('${day.label} (${day.date})'),
-                                              children: day.slots.isEmpty
-                                                  ? const [
-                                                      Padding(
-                                                        padding: EdgeInsets.all(8.0),
-                                                        child: Text('No slots available'),
-                                                      ),
-                                                    ]
-                                                  : day.slots.map((slot) {
-                                                      final isSelected = _selectedSlot?.id == slot.id;
-                                                      final isBooking = _booking && isSelected;
-                                                      return ListTile(
-                                                        title: Text('${slot.start} - ${slot.end}'),
-                                                        trailing: isBooking
-                                                            ? const SizedBox(
-                                                                width: 20,
-                                                                height: 20,
-                                                                child: CircularProgressIndicator(
-                                                                  strokeWidth: 2,
-                                                                ),
-                                                              )
-                                                            : isSelected
-                                                                ? const Icon(
-                                                                    Icons.check_circle,
-                                                                    color: Colors.green,
-                                                                  )
-                                                                : null,
-                                                        onTap: isBooking ? null : () => _bookSlot(slot),
-                                                      );
-                                                    }).toList(),
-                                            );
-                                          },
-                                        ),
-                        ),
-                      ],
-                    ),
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(Icons.notifications_none, color: primaryColor),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
 
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 6,
-                    offset: Offset(0, -2),
+                Expanded(
+                  child: widget.doctorId != null
+                      ? _buildDirectBookingView()
+                      : _buildSearchAndSelectView(),
+                ),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 6,
+                        offset: Offset(0, -2),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _bottomItem(
-                    icon: Icons.home,
-                    label: 'Home',
-                    active: false,
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PatientDashboard(),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _bottomItem(
+                        icon: Icons.home,
+                        label: 'Home',
+                        active: false,
+                        onTap: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PatientDashboard(),
+                            ),
+                          );
+                        },
+                      ),
+                      _bottomItem(
+                        icon: Icons.local_hospital,
+                        label: 'Hospital',
+                        active: false,
+                        onTap: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const HospitalListScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: primaryColor,
+                          shape: BoxShape.circle,
                         ),
-                      );
-                    },
+                        padding: const EdgeInsets.all(14),
+                        child: const Icon(Icons.add, color: Colors.white),
+                      ),
+                      _bottomItem(
+                        icon: Icons.local_pharmacy,
+                        label: 'Pharmacy',
+                        active: false,
+                        onTap: () {},
+                      ),
+                      _bottomItem(
+                        icon: Icons.person,
+                        label: 'Profile',
+                        active: false,
+                        onTap: () {},
+                      ),
+                    ],
                   ),
-                  _bottomItem(
-                    icon: Icons.local_hospital,
-                    label: 'Hospital',
-                    active: false,
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HospitalScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(14),
-                    child: const Icon(Icons.add, color: Colors.white),
-                  ),
-                  _bottomItem(
-                    icon: Icons.local_pharmacy,
-                    label: 'Pharmacy',
-                    active: false,
-                    onTap: () {},
-                  ),
-                  _bottomItem(
-                    icon: Icons.person,
-                    label: 'Profile',
-                    active: false,
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+                ),
+              ],
+             ),
+           ),
+         ],
+       ),
+     );
   }
 
   static Widget _bottomItem({

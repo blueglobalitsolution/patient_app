@@ -23,9 +23,9 @@ class SearchService {
   }
 
   Future<http.Response> _executeWithRefresh(
-    Future<http.Response> request,
+    Future<http.Response> Function() requestFn,
   ) async {
-    var response = await request;
+    var response = await requestFn();
 
     if (response.statusCode == 401) {
       if (_isRefreshing) {
@@ -36,7 +36,7 @@ class SearchService {
       try {
         final newToken = await _auth.refreshAccessToken();
         if (newToken != null) {
-          response = await request;
+          response = await requestFn();
         }
       } finally {
         _isRefreshing = false;
@@ -64,7 +64,7 @@ class SearchService {
 
       final headers = await _headers(auth: requireAuth);
       final response = await _executeWithRefresh(
-        http.get(uri, headers: headers),
+        () => http.get(uri, headers: headers),
       );
 
       if (response.statusCode == 200) {

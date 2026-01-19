@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:contact_manager_app/services/location_service.dart';
 import 'package:contact_manager_app/services/user_data_service.dart';
-import 'hospital_screen.dart';
+import 'package:contact_manager_app/services/appointment_service.dart';
+import 'package:contact_manager_app/models/appointment_models.dart';
+import 'search_screen.dart';
+import 'hospital_list_screen.dart';
 import 'book_appointment_screen.dart';
 import 'my_appointments_screen.dart';
 import '../profile_screen.dart';
@@ -17,11 +20,30 @@ class PatientDashboard extends StatefulWidget {
 class _PatientDashboardState extends State<PatientDashboard> {
   final TextEditingController _searchController = TextEditingController();
   final LocationService _locationService = LocationService();
+  final AppointmentService _appointmentService = AppointmentService();
+
+  MyAppointment? _upcomingAppointment;
+  bool _loadingAppointments = true;
+
+  Color get primaryColor => const Color(0xFF8c6239);
+  Color get bgColor => const Color(0xfff2f2f2);
 
   @override
   void initState() {
     super.initState();
     _loadLocationIfNeeded();
+    _loadUpcomingAppointment();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('DEBUG PatientDashboard: Location loaded = ${UserDataService().isLocationLoaded}');
+      print('DEBUG PatientDashboard: City = ${UserDataService().cityName}');
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadLocationIfNeeded() async {
@@ -43,14 +65,63 @@ class _PatientDashboardState extends State<PatientDashboard> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  Future<void> _loadUpcomingAppointment() async {
+    try {
+      final appointments = await _appointmentService.getMyAppointments();
+      final upcoming = appointments.where((a) {
+        final status = a.status.toLowerCase();
+        return status == 'confirmed' || status == 'scheduled' || status == 'pending';
+      }).firstOrNull;
+
+      setState(() {
+        _upcomingAppointment = upcoming;
+        _loadingAppointments = false;
+      });
+    } catch (e) {
+      print('DEBUG: Could not load appointments: $e');
+      setState(() {
+        _loadingAppointments = false;
+      });
+    }
   }
 
-  Color get primaryColor => const Color(0xFF8c6239);
-  Color get bgColor => const Color(0xfff2f2f2);
+  String _getTimeRemaining(String appointmentDate, String appointmentTime) {
+    try {
+      final now = DateTime.now();
+      final dateParts = appointmentDate.split('-');
+      if (dateParts.length != 3) return '';
+
+      final year = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final day = int.parse(dateParts[2]);
+
+      final timeParts = appointmentTime.split(':');
+      if (timeParts.length < 2) return '';
+
+      final hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1]);
+
+      final appointmentDateTime = DateTime(year, month, day, hour, minute);
+      final difference = appointmentDateTime.difference(now);
+
+      if (difference.isNegative) return 'Past';
+
+      final days = difference.inDays;
+      final hours = difference.inHours % 24;
+
+      if (days > 0) {
+        return '${days}D ${hours}h';
+      } else if (hours > 0) {
+        final minutes = difference.inMinutes % 60;
+        return '${hours}h ${minutes}m';
+      } else {
+        return '${difference.inMinutes}m';
+      }
+    } catch (e) {
+      print('DEBUG: Error calculating time remaining: $e');
+      return '';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +226,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => HospitalScreen(initialQuery: query.trim()),
+                                builder: (_) => SearchScreen(initialQuery: query.trim()),
                               ),
                             );
                           }
@@ -259,83 +330,11 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MyAppointmentsScreen(),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 6,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: bgColor,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Column(
-                                  children: [
-                                    Icon(Icons.timelapse, size: 20),
-                                    SizedBox(height: 4),
-                                    Text('1D 12h', style: TextStyle(fontSize: 12)),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'General Checkup',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      '01/02/2025 · 10:00 AM',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      'Dr. John Smith',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.chevron_right, color: Colors.grey[400]),
-                            ],
-                          ),
-                        ),
-                      ),
+                      child: _loadingAppointments
+                          ? Center(child: CircularProgressIndicator(color: primaryColor))
+                          : _upcomingAppointment == null
+                              ? _buildNoAppointmentCard()
+                              : _buildAppointmentCard(_upcomingAppointment!),
                     ),
 
                     const SizedBox(height: 16),
@@ -419,7 +418,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const HospitalScreen(),
+                          builder: (_) => const HospitalListScreen(),
                         ),
                       );
                     },
@@ -460,6 +459,169 @@ class _PatientDashboardState extends State<PatientDashboard> {
                         ),
                       );
                     },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoAppointmentCard() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const BookAppointmentScreen(),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.add_circle_outline, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 12),
+            Text(
+              'No upcoming appointments',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Book now to get started',
+              style: TextStyle(fontSize: 12, color: primaryColor, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppointmentCard(MyAppointment appointment) {
+    final timeRemaining = _getTimeRemaining(appointment.date, appointment.time);
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const MyAppointmentsScreen(),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.timelapse, size: 20),
+                  const SizedBox(height: 4),
+                  Text(
+                    'TK${appointment.id}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  if (timeRemaining.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(timeRemaining, style: const TextStyle(fontSize: 10)),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    appointment.reason.isNotEmpty ? appointment.reason : 'Consultation',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${appointment.date} · ${appointment.time}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Dr. ${appointment.doctor.name}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  if (appointment.hospitalName != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      appointment.hospitalName!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: appointment.statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: appointment.statusColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    appointment.statusDisplay,
+                    style: TextStyle(fontSize: 10, color: appointment.statusColor, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
