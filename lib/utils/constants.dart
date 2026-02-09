@@ -1,4 +1,4 @@
 class ApiConstants {
   // Change IP/port if your backend is different
-  static const String baseUrl = 'http://192.168.1.177:8000';
+  static const String baseUrl = 'https://rhms.blueglobaltechnology.com';
 }

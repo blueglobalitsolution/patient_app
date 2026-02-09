@@ -53,30 +53,49 @@ class SearchService {
   }) async {
     try {
       final queryParams = <String, String>{'query': query};
-      if (city != null && city.isNotEmpty) {
+
+      // Only add city parameter if it's provided and valid
+      // Sometimes backend returns empty results if city doesn't match exactly
+      if (city != null && city.isNotEmpty && city != 'null') {
         queryParams['city'] = city;
       }
 
       final uri = Uri.parse('${ApiConstants.baseUrl}/api/universal-search/')
           .replace(queryParameters: queryParams);
 
-      print('DEBUG: API URL: $uri');
+      print('==================== SEARCH DEBUG ====================');
+      print('🔍 Query: "$query"');
+      print('🏙️  City: "$city"');
+      print('🌐 Full URL: $uri');
+      print('📋 QueryParams: $queryParams');
+      print('🔐 RequireAuth: $requireAuth');
+      print('====================================================');
 
       final headers = await _headers(auth: requireAuth);
+      print('📤 Request Headers: $headers');
+
       final response = await _executeWithRefresh(
         () => http.get(uri, headers: headers),
       );
 
+      print('📥 Response Status: ${response.statusCode}');
+      print('📄 Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
-        print('DEBUG: Response 200 OK');
         final data = jsonDecode(response.body) as Map<String, dynamic>;
+        print('✅ Parsed Data: ${data.keys}');
+        print('👨‍⚕️  Doctors found: ${(data['doctors'] as List?)?.length ?? 0}');
+        print('🏥 Hospitals found: ${(data['hospitals'] as List?)?.length ?? 0}');
+        print('====================================================\n');
         return SearchResult.fromJson(data);
       } else {
-        print('DEBUG: Response error ${response.statusCode}: ${response.body}');
-        throw Exception('Search failed: ${response.statusCode}');
+        print('❌ Response error ${response.statusCode}: ${response.body}');
+        print('====================================================\n');
+        throw Exception('Search failed: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('DEBUG: Exception in search: $e');
+      print('💥 Exception in search: $e');
+      print('====================================================\n');
       throw Exception('Search error: $e');
     }
   }

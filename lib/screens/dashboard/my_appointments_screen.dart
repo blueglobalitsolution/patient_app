@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/appointment_models.dart';
-import '../../services/appointment_service.dart';
+import '../../services/storage_service.dart';
+import '../../services/notification_service.dart';
 import 'patient_dashboard.dart';
-import 'hospital_list_screen.dart';
 import 'book_appointment_screen.dart';
 
 class MyAppointmentsScreen extends StatefulWidget {
@@ -13,7 +13,7 @@ class MyAppointmentsScreen extends StatefulWidget {
 }
 
 class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
-  final _service = AppointmentService();
+  final _storage = StorageService();
   List<MyAppointment> _appointments = [];
   bool _loading = true;
 
@@ -31,9 +31,10 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
       _loading = true;
     });
     try {
-      final appointments = await _service.getMyAppointments();
+      final appointments = await _storage.getAppointments();
+      final sortedAppointments = _sortAppointmentsByProximity(appointments);
       setState(() {
-        _appointments = appointments;
+        _appointments = sortedAppointments;
       });
     } catch (e) {
       if (mounted) {
@@ -48,6 +49,24 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
         });
       }
     }
+  }
+
+  List<MyAppointment> _sortAppointmentsByProximity(List<MyAppointment> appointments) {
+    final now = DateTime.now();
+    
+    return appointments.where((appointment) {
+      final appointmentTime = appointment.appointmentDateTime;
+      return appointmentTime != null && appointmentTime.isAfter(now);
+    }).toList()..sort((a, b) {
+      final timeA = a.appointmentDateTime;
+      final timeB = b.appointmentDateTime;
+      
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null) return 1;
+      if (timeB == null) return -1;
+      
+      return timeA.compareTo(timeB);
+    });
   }
 
   Future<void> _cancelAppointment(MyAppointment appointment) async {
@@ -72,7 +91,34 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     if (confirm != true) return;
 
     try {
-      await _service.cancelAppointment(appointment.id);
+      try {
+        await NotificationService().cancelAppointmentReminder(appointment.id);
+      } catch (e) {
+        print('Error cancelling reminder: $e');
+      }
+
+      await _storage.deleteAppointment(appointment.id);
+
+      try {
+        final cancelNotificationId = (appointment.id * 100) + 2;
+        await NotificationService().showLocalNotification(
+          id: cancelNotificationId,
+          title: 'Appointment Cancelled',
+          body: 'Your appointment has been cancelled.',
+          payload: '{"type": "cancel", "appointmentId": ${appointment.id}}',
+        );
+        await _storage.saveLocalNotification(LocalNotification(
+          id: cancelNotificationId,
+          title: 'Appointment Cancelled',
+          message: 'Your appointment has been cancelled.',
+          type: 'cancelled',
+          createdAt: DateTime.now(),
+          appointmentId: appointment.id,
+        ));
+      } catch (e) {
+        print('Error sending cancel notification: $e');
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Appointment cancelled successfully')),
@@ -247,8 +293,8 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
                     ),
                   ),
                   _bottomItem(
-                    icon: Icons.local_pharmacy,
-                    label: 'Pharmacy',
+                    icon: Icons.history,
+                    label: 'History',
                     active: false,
                     onTap: () {},
                   ),

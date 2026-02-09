@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/appointment_models.dart';
 import '../../services/appointment_service.dart';
+import '../../services/storage_service.dart';
+import '../../services/notification_service.dart';
 import 'patient_dashboard.dart';
 import 'hospital_list_screen.dart';
 import 'booking_confirmation_screen.dart';
@@ -203,6 +205,74 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         final dateValue = response['date']?.toString() ?? '';
         final messageValue = response['message']?.toString() ?? 'Appointment booked successfully';
 
+        final appointment = MyAppointment(
+          id: tokenNum,
+          date: dateValue.isNotEmpty ? dateValue : _selectedDay?.date ?? '',
+          time: slot.start,
+          status: 'confirmed',
+          reason: _reasonController.text,
+          doctor: Doctor(
+            id: doctor.id,
+            name: doctor.name,
+            specialization: doctor.specialization ?? '',
+          ),
+          hospitalName: doctor.hospitalName,
+          department: _departmentController.text,
+        );
+
+        try {
+          final storage = StorageService();
+          await storage.saveAppointment(appointment);
+        } catch (e) {
+          print('Error saving appointment to storage: $e');
+        }
+
+        try {
+          final bookedNotificationId = (tokenNum * 100) + 0;
+          await NotificationService().showLocalNotification(
+            id: bookedNotificationId,
+            title: 'Appointment Booked',
+            body: 'Your appointment has been booked successfully.',
+            payload: '{"type": "booking", "appointmentId": $tokenNum}',
+          );
+          final notificationStorage = StorageService();
+          await notificationStorage.saveLocalNotification(LocalNotification(
+            id: bookedNotificationId,
+            title: 'Appointment Booked',
+            message: 'Your appointment has been booked successfully.',
+            type: 'booking',
+            createdAt: DateTime.now(),
+            appointmentId: tokenNum,
+          ));
+        } catch (e) {
+          print('Error sending booked notification: $e');
+        }
+
+        try {
+          final appointmentDateTime = appointment.appointmentDateTime;
+          if (appointmentDateTime != null && appointmentDateTime.isAfter(DateTime.now())) {
+            await NotificationService().scheduleAppointmentReminder(
+              appointmentId: tokenNum,
+              doctorName: doctor.name,
+              appointmentTime: appointmentDateTime,
+            );
+            final reminderNotificationId = (tokenNum * 100) + 1;
+            final reminderStorage = StorageService();
+            await reminderStorage.saveLocalNotification(LocalNotification(
+              id: reminderNotificationId,
+              title: 'Appointment Reminder',
+              message: 'Reminder: Your appointment with Dr. ${doctor.name} is scheduled for ${appointment.time}.',
+              type: 'reminder',
+              createdAt: DateTime.now(),
+              appointmentId: tokenNum,
+            ));
+          } else {
+            print('Warning: Cannot schedule reminder - appointment is in the past or invalid');
+          }
+        } catch (e) {
+          print('Error scheduling reminder: $e');
+        }
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -256,16 +326,91 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     }
   }
 
-  Map<String, List<Slot>> _groupSlotsByShift(List<Slot> slots) {
+  Map<String, List<Slot>> _groupSlotsByShift(List<Slot> slots, {DateTime? selectedDate}) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isToday = selectedDate != null &&
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day).isAtSameMomentAs(today);
+
+    print('DEBUG: _groupSlotsByShift - Current time: $now');
+    print('DEBUG: _groupSlotsByShift - Selected date: $selectedDate');
+    print('DEBUG: _groupSlotsByShift - Today: $today');
+    print('DEBUG: _groupSlotsByShift - Is today: $isToday');
+    print('DEBUG: _groupSlotsByShift - Processing ${slots.length} slots');
+
     final grouped = <String, List<Slot>>{};
-    for (var slot in slots) {
+    int filteredCount = 0;
+
+    for (var i = 0; i < slots.length; i++) {
+      final slot = slots[i];
+      print('DEBUG: Slot ${i+1}: start="${slot.start}", displayTime="${slot.displayTime}"');
+
+      if (isToday && _isSlotInPast(slot.start, now)) {
+        print('DEBUG: ⚠️ Filtering out past slot: ${slot.start} (${slot.displayTime})');
+        filteredCount++;
+        continue;
+      }
+
       final shift = _getShift(slot.start);
+      print('DEBUG: ✅ Slot "${slot.start}" -> Shift: $shift');
       if (shift.isNotEmpty) {
         grouped.putIfAbsent(shift, () => []);
         grouped[shift]!.add(slot);
       }
     }
+
+    print('DEBUG: Filtered out $filteredCount past slots');
+    print('DEBUG: Final grouped slots: ${grouped.map((k, v) => MapEntry(k, '${v.length} slots'))}');
     return grouped;
+  }
+
+  bool _isSlotInPast(String timeStr, DateTime now) {
+    try {
+      print('DEBUG: Parsing time string: "$timeStr"');
+
+      int hour;
+      int minute;
+
+      if (timeStr.toUpperCase().contains('AM') || timeStr.toUpperCase().contains('PM')) {
+        final timeWithoutMeridiem = timeStr.toUpperCase().replaceAll('AM', '').replaceAll('PM', '').trim();
+        final parts = timeWithoutMeridiem.split(':');
+
+        if (parts.length < 2) {
+          print('DEBUG: Invalid AM/PM time format: $timeStr');
+          return false;
+        }
+
+        final isPM = timeStr.toUpperCase().contains('PM');
+        hour = int.tryParse(parts[0].trim()) ?? 0;
+        minute = int.tryParse(parts[1].trim()) ?? 0;
+
+        if (isPM && hour != 12) {
+          hour += 12;
+        } else if (!isPM && hour == 12) {
+          hour = 0;
+        }
+
+        print('DEBUG: AM/PM time $timeStr -> Hour: $hour, Minute: $minute');
+      } else {
+        final parts = timeStr.split(':');
+        if (parts.length < 2) {
+          print('DEBUG: Invalid 24h format: $timeStr');
+          return false;
+        }
+        hour = int.tryParse(parts[0]) ?? 0;
+        minute = int.tryParse(parts[1]) ?? 0;
+        print('DEBUG: 24h time $timeStr -> Hour: $hour, Minute: $minute');
+      }
+
+      final slotDateTime = DateTime(now.year, now.month, now.day, hour, minute);
+      final isPast = slotDateTime.isBefore(now);
+
+      print('DEBUG: Slot time: $slotDateTime, Current time: $now, Is past: $isPast');
+      return isPast;
+    } catch (e) {
+      print('DEBUG: Error parsing time $timeStr: $e');
+      return false;
+    }
   }
 
   String _formatDateForDisplay(String dateStr) {
@@ -530,7 +675,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       );
     }
 
-    final shiftGroups = _groupSlotsByShift(selectedDaySlots);
+    final shiftGroups = _groupSlotsByShift(selectedDaySlots, selectedDate: _selectedDate);
     print('DEBUG: Shift groups: ${shiftGroups.keys}');
     
     final shifts = ['Morning', 'Afternoon', 'Evening'];
@@ -930,8 +1075,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
                         child: const Icon(Icons.add, color: Colors.white),
                       ),
                       _bottomItem(
-                        icon: Icons.local_pharmacy,
-                        label: 'Pharmacy',
+                        icon: Icons.history,
+                        label: 'History',
                         active: false,
                         onTap: () {},
                       ),

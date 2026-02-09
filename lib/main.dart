@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'services/notification_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await NotificationService().initialize();
+    print('NotificationService initialized successfully');
+  } catch (e) {
+    print('Notification service initialization error: $e');
+  }
+
   runApp(const MyApp());
 }
 

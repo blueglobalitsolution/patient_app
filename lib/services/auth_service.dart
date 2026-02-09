@@ -101,12 +101,38 @@ class AuthService {
           'success': true,
           'message': data['message'] ?? 'Password reset email sent',
         };
-      } else {
-        final data = jsonDecode(response.body);
+      } else if (response.statusCode == 404) {
+        // Email not found/registered
         return {
           'success': false,
-          'error': data['error'] ?? 'Failed to send reset email',
+          'error': 'This email is not registered. Please check and try again.',
         };
+      } else {
+        try {
+          final data = jsonDecode(response.body);
+          String errorMsg = 'Failed to send reset email';
+          
+          // Check for specific error messages
+          if (data['email'] != null) {
+            errorMsg = data['email'][0];
+          } else if (data['error'] != null) {
+            errorMsg = data['error'];
+          } else if (data['detail'] != null) {
+            errorMsg = data['detail'];
+          } else if (data['non_field_errors'] != null) {
+            errorMsg = data['non_field_errors'][0];
+          }
+          
+          return {
+            'success': false,
+            'error': errorMsg,
+          };
+        } catch (_) {
+          return {
+            'success': false,
+            'error': 'Server error: ${response.statusCode}',
+          };
+        }
       }
     } catch (e) {
       return {'success': false, 'error': 'Network error: $e'};

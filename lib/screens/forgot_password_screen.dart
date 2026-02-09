@@ -56,8 +56,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
       );
     } else {
+      String errorMessage = result['error'] ?? 'Failed to send reset email';
+      
+      // Show specific styling for email not registered
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['error'] ?? 'Failed to send reset email')),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: errorMessage.contains('not registered') ? Colors.red : Colors.orange,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
       );
     }
   }

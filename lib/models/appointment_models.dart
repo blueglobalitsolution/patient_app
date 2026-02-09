@@ -250,4 +250,101 @@ class MyAppointment {
         return Colors.grey;
     }
   }
+
+  DateTime? get appointmentDateTime {
+    try {
+      final dateParts = date.split('-');
+      if (dateParts.length != 3) return null;
+      
+      int? hour;
+      int? minute;
+      
+      if (time.toUpperCase().contains('AM') || time.toUpperCase().contains('PM')) {
+        final cleanTime = time.toUpperCase().replaceAll('AM', '').replaceAll('PM', '').trim();
+        final timeParts = cleanTime.split(':');
+        if (timeParts.length != 2) return null;
+        
+        final baseHour = int.tryParse(timeParts[0]);
+        minute = int.tryParse(timeParts[1]);
+        
+        if (baseHour == null || minute == null) return null;
+        
+        if (time.toUpperCase().contains('PM') && baseHour != 12) {
+          hour = baseHour + 12;
+        } else if (time.toUpperCase().contains('AM') && baseHour == 12) {
+          hour = 0;
+        } else {
+          hour = baseHour;
+        }
+      } else {
+        final timeParts = time.split(':');
+        if (timeParts.length != 2) return null;
+        hour = int.tryParse(timeParts[0]);
+        minute = int.tryParse(timeParts[1]);
+        
+        if (hour == null || minute == null) return null;
+      }
+      
+      final year = int.tryParse(dateParts[0]);
+      final month = int.tryParse(dateParts[1]);
+      final day = int.tryParse(dateParts[2]);
+      
+      if (year == null || month == null || day == null) return null;
+      
+      return DateTime(year, month, day, hour, minute);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Duration? get timeFromNow {
+    final appointmentTime = appointmentDateTime;
+    if (appointmentTime == null) return null;
+    return appointmentTime.difference(DateTime.now());
+  }
 }
+
+class LocalNotification {
+  final int id;
+  final String title;
+  final String message;
+  final String type;
+  final DateTime createdAt;
+  final bool isRead;
+  final int? appointmentId;
+
+  LocalNotification({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.type,
+    required this.createdAt,
+    this.isRead = false,
+    this.appointmentId,
+  });
+
+  factory LocalNotification.fromJson(Map<String, dynamic> json) {
+    return LocalNotification(
+      id: json['id'] ?? DateTime.now().millisecondsSinceEpoch,
+      title: json['title'] ?? '',
+      message: json['message'] ?? '',
+      type: json['type'] ?? '',
+      createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
+      isRead: json['is_read'] ?? false,
+      appointmentId: json['appointment_id'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'message': message,
+      'type': type,
+      'created_at': createdAt.toIso8601String(),
+      'is_read': isRead,
+      'appointment_id': appointmentId,
+    };
+  }
+}
+

@@ -138,8 +138,8 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
             ),
           ),
           _bottomItem(
-            icon: Icons.local_pharmacy,
-            label: 'Pharmacy',
+            icon: Icons.history,
+            label: 'History',
             active: false,
             onTap: () {},
           ),

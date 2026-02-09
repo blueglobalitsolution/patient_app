@@ -134,13 +134,19 @@ class AppointmentService {
   Future<List<MyAppointment>> getMyAppointments() async {
     final uri = Uri.parse('${ApiConstants.baseUrl}/api/appointments/my-appointments/');
 
+    print('DEBUG: Fetching appointments from: ${ApiConstants.baseUrl}/api/appointments/my-appointments/');
     final headers = await _headers(auth: true);
+    print('DEBUG: Headers: $headers');
     final res = await _executeWithRefresh(
       () => http.get(uri, headers: headers),
     );
 
+    print('DEBUG: Response status: ${res.statusCode}');
+    print('DEBUG: Response body: ${res.body}');
+
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as List<dynamic>;
+      print('DEBUG: Parsed ${data.length} appointments from response');
       return data.map((e) => MyAppointment.fromJson(e)).toList();
     }
     throw Exception('Failed to load appointments');

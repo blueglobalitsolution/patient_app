@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:contact_manager_app/services/search_service.dart';
 import 'package:contact_manager_app/services/location_service.dart';
 import 'package:contact_manager_app/services/user_data_service.dart';
@@ -8,6 +9,7 @@ import 'package:contact_manager_app/screens/dashboard/hospital_details_screen.da
 import 'package:contact_manager_app/screens/dashboard/patient_dashboard.dart';
 import 'package:contact_manager_app/screens/dashboard/hospital_list_screen.dart';
 import 'package:contact_manager_app/screens/profile_screen.dart';
+import 'package:contact_manager_app/utils/constants.dart';
 
 class SearchScreen extends StatefulWidget {
   final String? initialQuery;
@@ -28,6 +30,7 @@ class _SearchScreenState extends State<SearchScreen> {
   String _errorMessage = '';
   String? _resolvedKeyword;
   String? _cityName;
+  bool _useCityFilter = true;
 
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
@@ -90,8 +93,9 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
 
-    final cityToSend = _cityName ?? 'Vadodara';
-    print('DEBUG: Starting search - query: "$query", city: "$cityToSend"');
+    // Only send city if filter is enabled and we have a valid city
+    final cityToSend = _useCityFilter ? (_cityName ?? 'Vadodara') : null;
+    print('DEBUG: Starting search - query: "$query", city: "$cityToSend", useFilter: $_useCityFilter');
 
     setState(() {
       _searching = true;
@@ -104,16 +108,33 @@ class _SearchScreenState extends State<SearchScreen> {
         city: cityToSend,
       );
       print('DEBUG: Search completed - Doctors: ${result.doctors.length}, Hospitals: ${result.hospitals.length}');
+      print('DEBUG: Doctors list: ${result.doctors}');
+      print('DEBUG: Hospitals list: ${result.hospitals}');
 
       setState(() {
         _searchResult = result;
         _resolvedKeyword = result.resolvedKeyword;
         _searching = false;
       });
+
+      print('DEBUG: After setState - _searchResult: $_searchResult');
+      print('DEBUG: After setState - _displayDoctors count: ${_displayDoctors.length}');
+      print('DEBUG: After setState - _displayHospitals count: ${_displayHospitals.length}');
+      print('DEBUG: After setState - _filteredItems count: ${_filteredItems.length}');
     } catch (e) {
       print('DEBUG: Search error: $e');
+      String errorMsg = e.toString();
+      
+      if (errorMsg.contains('Failed host lookup')) {
+        errorMsg = 'Cannot connect to server. Please check your internet connection.';
+      } else if (errorMsg.contains('Connection refused')) {
+        errorMsg = 'Server not responding. Please check if backend is running.';
+      } else if (errorMsg.contains('timeout')) {
+        errorMsg = 'Request timed out. Please try again.';
+      }
+      
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = errorMsg;
         _searching = false;
       });
     }
@@ -221,6 +242,51 @@ class _SearchScreenState extends State<SearchScreen> {
     return const SizedBox.shrink();
   }
 
+  Widget _suggestionChip(String query) {
+    return GestureDetector(
+      onTap: () {
+        _searchController.text = query;
+        _performSearch(query);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: primaryColor),
+        ),
+        child: Text(
+          query,
+          style: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _testButton(String query) {
+    return ElevatedButton(
+      onPressed: () {
+        _searchController.text = query;
+        _performSearch(query);
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(
+        query,
+        style: const TextStyle(fontSize: 12),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -230,13 +296,9 @@ class _SearchScreenState extends State<SearchScreen> {
           children: [
             _buildHeader(),
             Expanded(
-              child: Column(
-                children: [
-                  _searchResult == null && !_searching
-                      ? _buildInitialView()
-                      : _buildResultsView(),
-                ],
-              ),
+              child: _searchResult == null && !_searching
+                  ? _buildInitialView()
+                  : _buildResultsView(),
             ),
           ],
         ),
@@ -306,8 +368,8 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           _bottomItem(
-            icon: Icons.local_pharmacy,
-            label: 'Pharmacy',
+            icon: Icons.history,
+            label: 'History',
             active: false,
             onTap: () {},
           ),
@@ -369,56 +431,107 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(12),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Color(0xFF8c6239)),
+                ),
               ),
-              child: const Icon(Icons.arrow_back, color: Color(0xFF8c6239)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: TextField(
-                controller: _searchController,
-                autofocus: widget.initialQuery == null || widget.initialQuery!.isEmpty,
-                decoration: InputDecoration(
-                  hintText: 'Search hospital or doctor',
-                  hintStyle: const TextStyle(fontSize: 13),
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchResult = null;
-                              _resolvedKeyword = null;
-                            });
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: widget.initialQuery == null || widget.initialQuery!.isEmpty,
+                    decoration: InputDecoration(
+                      hintText: 'Search hospital or doctor',
+                      hintStyle: const TextStyle(fontSize: 13),
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.grey),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchResult = null;
+                                  _resolvedKeyword = null;
+                                });
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      if (value.length >= 2) {
+                        _performSearch(value);
+                      } else if (value.isEmpty) {
+                        setState(() {
+                          _searchResult = null;
+                          _resolvedKeyword = null;
+                        });
+                      }
+                    },
+                    onSubmitted: _performSearch,
                   ),
                 ),
-                onSubmitted: _performSearch,
               ),
-            ),
+            ],
           ),
+          if (_cityName != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  'Location: $_cityName',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    Text(
+                      'Filter by city',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: _useCityFilter,
+                      onChanged: (value) {
+                        setState(() {
+                          _useCityFilter = value;
+                        });
+                        // Re-search if we have a query
+                        if (_searchController.text.isNotEmpty) {
+                          _performSearch(_searchController.text);
+                        }
+                      },
+                      activeColor: primaryColor,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -426,18 +539,110 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildInitialView() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            'Search for hospitals or doctors',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'Search for hospitals or doctors',
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Test with known queries:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _testButton('a'),
+                      _testButton('test'),
+                      _testButton('surgeon'),
+                      _testButton('hospital'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _testApiConnection(),
+              icon: const Icon(Icons.wifi_find),
+              label: const Text('Test API Connection'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _testApiConnection() async {
+    try {
+      setState(() {
+        _searching = true;
+      });
+
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      setState(() {
+        _searching = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('API Status: ${response.statusCode} - Server is running!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _searching = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('API Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildResultsView() {
@@ -483,16 +688,54 @@ class _SearchScreenState extends State<SearchScreen> {
 
     if (_filteredItems.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
-            Text(
-              'No results found',
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off, size: 64, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(
+                'No results found',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Try searching for:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _suggestionChip('surgeon'),
+                        _suggestionChip('cardiology'),
+                        _suggestionChip('neurology'),
+                        _suggestionChip('hospital'),
+                        _suggestionChip('test'),
+                        _suggestionChip('a'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -546,21 +789,18 @@ class _SearchScreenState extends State<SearchScreen> {
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _filteredItems.length,
+            itemCount: _filteredItems.length + (_selectedTab == 0 && _displayDoctors.isNotEmpty && _displayHospitals.isNotEmpty ? 1 : 0),
             itemBuilder: (context, index) {
-              final item = _filteredItems[index];
-              print('DEBUG: Building card for item at index $index: $item');
-
               if (_selectedTab == 0 && index == _displayDoctors.length && _displayDoctors.isNotEmpty && _displayHospitals.isNotEmpty) {
                 return Column(
                   children: [
                     Container(
                       height: 1,
                       color: Colors.grey.shade300,
-                      margin: const EdgeInsets.symmetric(vertical: 16),
+                      margin: const EdgeInsets.symmetric(vertical: 8),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       color: Colors.grey.shade200,
                       child: Text(
                         'Hospitals',
@@ -571,16 +811,23 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    _buildResultCard(item),
                   ],
                 );
-              } else {
+              }
+
+              final adjustedIndex = _selectedTab == 0 && _displayDoctors.isNotEmpty && _displayHospitals.isNotEmpty && index > _displayDoctors.length
+                  ? index - 1
+                  : index;
+
+              if (adjustedIndex < _filteredItems.length) {
+                final item = _filteredItems[adjustedIndex];
+                print('DEBUG: Building card for item at index $adjustedIndex: $item');
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _buildResultCard(item),
                 );
               }
+              return const SizedBox.shrink();
             },
           ),
         ),
@@ -622,6 +869,7 @@ class _ResultCard extends StatelessWidget {
         ],
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Container(
             width: 48,
@@ -633,9 +881,10 @@ class _ResultCard extends StatelessWidget {
             child: Icon(icon, color: Colors.grey),
           ),
           const SizedBox(width: 12),
-          Expanded(
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   title,
@@ -655,7 +904,7 @@ class _ResultCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const Spacer(),
           SizedBox(
             height: 32,
             child: ElevatedButton(

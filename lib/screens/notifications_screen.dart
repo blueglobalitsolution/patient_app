@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/patient_models.dart';
-import '../services/patient_service.dart';
-import 'dashboard/patient_dashboard.dart';
+import '../models/appointment_models.dart';
+import '../services/storage_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -11,8 +10,8 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final _service = PatientService();
-  List<PatientNotification> _notifications = [];
+  final _storageService = StorageService();
+  List<LocalNotification> _notifications = [];
   bool _loading = true;
 
   Color get primaryColor => const Color(0xFF8c6239);
@@ -29,7 +28,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       _loading = true;
     });
     try {
-      final notifications = await _service.getNotifications();
+      final notifications = await _storageService.getLocalNotifications();
       setState(() {
         _notifications = notifications;
       });
@@ -48,16 +47,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  Future<void> _markAsRead(PatientNotification notification) async {
+  Future<void> _markAsRead(LocalNotification notification) async {
     if (notification.isRead) return;
 
     try {
-      await _service.markNotificationAsRead(notification.id);
-      
+      await _storageService.markLocalNotificationAsRead(notification.id);
+
       setState(() {
         final index = _notifications.indexWhere((n) => n.id == notification.id);
         if (index != -1) {
-          _notifications[index] = PatientNotification(
+          _notifications[index] = LocalNotification(
             id: notification.id,
             title: notification.title,
             message: notification.message,
@@ -75,6 +74,116 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         );
       }
     }
+  }
+
+  void _showNotificationBottomSheet(LocalNotification notification) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.4,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: _getNotificationColor(notification.type).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Icon(
+                              _getNotificationIcon(notification.type),
+                              color: _getNotificationColor(notification.type),
+                              size: 24,
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  notification.title,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  _formatDate(notification.createdAt.toIso8601String()),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20),
+                      Text(
+                        notification.message,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey[700],
+                          height: 1.5,
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      if (!notification.isRead)
+                        ElevatedButton(
+                          onPressed: () {
+                            _markAsRead(notification);
+                            Navigator.pop(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            minimumSize: Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text('Mark as Read'),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -115,6 +224,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 );
               },
             ),
+          if (_notifications.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep, color: Colors.white),
+              onPressed: _clearAllNotifications,
+            ),
         ],
       ),
       body: _loading
@@ -149,7 +263,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       final notification = _notifications[index];
                       return _NotificationCard(
                         notification: notification,
-                        onTap: () => _markAsRead(notification),
+                        onTap: () => _showNotificationBottomSheet(notification),
                       );
                     },
                   ),
@@ -158,30 +272,118 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _markAllAsRead() async {
-    final unreadNotifications = _notifications.where((n) => !n.isRead).toList();
-    
-    for (final notification in unreadNotifications) {
-      try {
-        await _service.markNotificationAsRead(notification.id);
-      } catch (e) {
-        print('Failed to mark notification ${notification.id} as read: $e');
-      }
+    try {
+      await _storageService.markAllLocalNotificationsAsRead();
+    } catch (e) {
+      print('Failed to mark all notifications as read: $e');
     }
-    
     _loadNotifications();
   }
-}
 
-class _NotificationCard extends StatelessWidget {
-  final PatientNotification notification;
-  final VoidCallback onTap;
+  Future<void> _clearAllNotifications() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear All'),
+        content: const Text('Clear all notifications?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
 
-  const _NotificationCard({
-    required this.notification,
-    required this.onTap,
-  });
+    if (confirm != true) return;
 
-  Color get primaryColor => const Color(0xFF8c6239);
+    try {
+      await _storageService.clearAllLocalNotifications();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All notifications cleared')),
+        );
+      }
+      _loadNotifications();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to clear notifications: $e')),
+        );
+      }
+    }
+  }
+  }
+
+  Color _getNotificationColor(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'appointment':
+      case 'booking':
+        return const Color(0xFF4CAF50);
+      case 'cancel':
+      case 'cancelled':
+      case 'reminder':
+        return const Color(0xFFF44336);
+      case 'medical':
+        return const Color(0xFF2196F3);
+      default:
+        return const Color(0xFF8c6239);
+    }
+  }
+
+  IconData _getNotificationIcon(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'appointment':
+      case 'booking':
+        return Icons.calendar_month;
+      case 'cancel':
+      case 'cancelled':
+        return Icons.cancel;
+      case 'reminder':
+        return Icons.alarm;
+      case 'medical':
+        return Icons.medical_services;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays > 7) {
+        return '${date.day}/${date.month}/${date.year}';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} hours ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} minutes ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  class _NotificationCard extends StatelessWidget {
+    final LocalNotification notification;
+    final VoidCallback onTap;
+
+    const _NotificationCard({
+      required this.notification,
+      required this.onTap,
+    });
+
+    Color get primaryColor => const Color(0xFF8c6239);
 
   @override
   Widget build(BuildContext context) {
@@ -263,13 +465,14 @@ class _NotificationCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    _formatDate(notification.createdAt),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[500],
-                    ),
-                  ),
+                   Text(
+                     _formatDate(notification.createdAt.toIso8601String()),
+                     style: TextStyle(
+                       fontSize: 11,
+                       color: Colors.grey[500],
+                     ),
+                   ),
+
                 ],
               ),
             ),
@@ -277,58 +480,5 @@ class _NotificationCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _getNotificationColor(String? type) {
-    switch (type?.toLowerCase()) {
-      case 'appointment':
-      case 'booking':
-        return const Color(0xFF4CAF50);
-      case 'cancel':
-      case 'reminder':
-        return const Color(0xFFF44336);
-      case 'medical':
-        return const Color(0xFF2196F3);
-      default:
-        return const Color(0xFF8c6239);
-    }
-  }
-
-  IconData _getNotificationIcon(String? type) {
-    switch (type?.toLowerCase()) {
-      case 'appointment':
-      case 'booking':
-        return Icons.calendar_month;
-      case 'cancel':
-        return Icons.cancel;
-      case 'reminder':
-        return Icons.alarm;
-      case 'medical':
-        return Icons.medical_services;
-      default:
-        return Icons.notifications;
-    }
-  }
-
-  String _formatDate(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      final now = DateTime.now();
-      final difference = now.difference(date);
-
-      if (difference.inDays > 7) {
-        return '${date.day}/${date.month}/${date.year}';
-      } else if (difference.inDays > 0) {
-        return '${difference.inDays} days ago';
-      } else if (difference.inHours > 0) {
-        return '${difference.inHours} hours ago';
-      } else if (difference.inMinutes > 0) {
-        return '${difference.inMinutes} minutes ago';
-      } else {
-        return 'Just now';
-      }
-    } catch (e) {
-      return dateStr;
-    }
   }
 }

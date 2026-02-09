@@ -58,34 +58,24 @@ class ApprovedHospital {
   final String name;
   final String? address;
   final String? city;
-  final String? state;
-  final String? pincode;
-  final String? phone;
+  final String? pNumber;
   final String? email;
   final String? logo;
-  final String? description;
-  final bool isActive;
+  final List<String>? hospitalType;
   final int? totalDoctors;
   final int? totalDepartments;
-  final String? createdAt;
-  final String? updatedAt;
 
   ApprovedHospital({
     required this.id,
     required this.name,
     this.address,
     this.city,
-    this.state,
-    this.pincode,
-    this.phone,
+    this.pNumber,
     this.email,
     this.logo,
-    this.description,
-    this.isActive = true,
+    this.hospitalType,
     this.totalDoctors,
     this.totalDepartments,
-    this.createdAt,
-    this.updatedAt,
   });
 
   factory ApprovedHospital.fromJson(Map<String, dynamic> json) {
@@ -94,17 +84,14 @@ class ApprovedHospital {
       name: json['name'] ?? '',
       address: json['address'],
       city: json['city'],
-      state: json['state'],
-      pincode: json['pincode'],
-      phone: json['phone'],
+      pNumber: json['p_number']?.toString(),
       email: json['email'],
       logo: json['logo'],
-      description: json['description'],
-      isActive: json['is_active'] ?? json['active'] ?? true,
+      hospitalType: json['hospital_type'] != null 
+          ? List<String>.from(json['hospital_type']) 
+          : null,
       totalDoctors: json['total_doctors'],
       totalDepartments: json['total_departments'],
-      createdAt: json['created_at'],
-      updatedAt: json['updated_at'],
     );
   }
 
@@ -114,17 +101,12 @@ class ApprovedHospital {
       'name': name,
       'address': address,
       'city': city,
-      'state': state,
-      'pincode': pincode,
-      'phone': phone,
+      'p_number': pNumber,
       'email': email,
       'logo': logo,
-      'description': description,
-      'is_active': isActive,
+      'hospital_type': hospitalType,
       'total_doctors': totalDoctors,
       'total_departments': totalDepartments,
-      'created_at': createdAt,
-      'updated_at': updatedAt,
     };
   }
 }

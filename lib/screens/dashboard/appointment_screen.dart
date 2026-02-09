@@ -184,7 +184,7 @@ class AppointmentScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     child: const Icon(Icons.add, color: Colors.white),
                   ),
-                  _bottomItem(context, Icons.local_pharmacy, 'Pharmacy', false),
+                  _bottomItem(context, Icons.history, 'History', false),
                   _bottomItem(context, Icons.person, 'Profile', false),
                 ],
               ),

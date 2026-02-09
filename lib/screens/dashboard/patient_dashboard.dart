@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:carousel_slider/carousel_slider.dart' as slider;
 import 'package:contact_manager_app/services/location_service.dart';
 import 'package:contact_manager_app/services/user_data_service.dart';
-import 'package:contact_manager_app/services/appointment_service.dart';
+import 'package:contact_manager_app/services/storage_service.dart';
+import 'package:contact_manager_app/services/patient_service.dart';
 import 'package:contact_manager_app/models/appointment_models.dart';
 import 'search_screen.dart';
 import 'hospital_list_screen.dart';
@@ -20,10 +22,14 @@ class PatientDashboard extends StatefulWidget {
 class _PatientDashboardState extends State<PatientDashboard> {
   final TextEditingController _searchController = TextEditingController();
   final LocationService _locationService = LocationService();
-  final AppointmentService _appointmentService = AppointmentService();
+  final StorageService _storageService = StorageService();
+  final PatientService _patientService = PatientService();
+  final slider.CarouselSliderController _carouselController = slider.CarouselSliderController();
 
-  MyAppointment? _upcomingAppointment;
+  List<MyAppointment> _upcomingAppointments = [];
   bool _loadingAppointments = true;
+  String? _patientName;
+  int _unreadNotificationCount = 0;
 
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
@@ -31,8 +37,10 @@ class _PatientDashboardState extends State<PatientDashboard> {
   @override
   void initState() {
     super.initState();
+    _loadPatientProfile();
     _loadLocationIfNeeded();
     _loadUpcomingAppointment();
+    _loadUnreadNotificationCount();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       print('DEBUG PatientDashboard: Location loaded = ${UserDataService().isLocationLoaded}');
@@ -44,6 +52,31 @@ class _PatientDashboardState extends State<PatientDashboard> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPatientProfile() async {
+    try {
+      final profile = await _patientService.getProfile();
+      setState(() {
+        _patientName = profile.fullName;
+      });
+    } catch (e) {
+      print('DEBUG: Could not load patient profile: $e');
+    }
+  }
+
+  Future<void> _loadUnreadNotificationCount() async {
+    try {
+      final notifications = await _storageService.getLocalNotifications();
+      final unreadCount = notifications.where((n) => !n.isRead).length;
+      if (mounted) {
+        setState(() {
+          _unreadNotificationCount = unreadCount;
+        });
+      }
+    } catch (e) {
+      print('DEBUG: Could not load notification count: $e');
+    }
   }
 
   Future<void> _loadLocationIfNeeded() async {
@@ -67,22 +100,128 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
   Future<void> _loadUpcomingAppointment() async {
     try {
-      final appointments = await _appointmentService.getMyAppointments();
-      final upcoming = appointments.where((a) {
-        final status = a.status.toLowerCase();
-        return status == 'confirmed' || status == 'scheduled' || status == 'pending';
-      }).firstOrNull;
-
-      setState(() {
-        _upcomingAppointment = upcoming;
-        _loadingAppointments = false;
-      });
+      print('DEBUG: Loading appointments from local storage...');
+      final appointments = await _storageService.getAppointments();
+      print('DEBUG: Total appointments loaded: ${appointments.length}');
+      
+      // Add sample appointments if none exist
+      if (appointments.isEmpty) {
+        print('DEBUG: No appointments found, adding sample data...');
+        final sampleAppointments = _createSampleAppointments();
+        for (final appointment in sampleAppointments) {
+          await _storageService.saveAppointment(appointment);
+        }
+        print('DEBUG: Added ${sampleAppointments.length} sample appointments');
+        // Reload appointments after adding samples
+        final updatedAppointments = await _storageService.getAppointments();
+        await _processAppointments(updatedAppointments);
+      } else {
+        await _processAppointments(appointments);
+      }
     } catch (e) {
       print('DEBUG: Could not load appointments: $e');
+      print('DEBUG: Error stack trace: ${StackTrace.current}');
       setState(() {
         _loadingAppointments = false;
       });
     }
+  }
+
+  Future<void> _processAppointments(List<MyAppointment> appointments) async {
+    for (var i = 0; i < appointments.length; i++) {
+      print('DEBUG: Appointment $i - ID: ${appointments[i].id}, Date: ${appointments[i].date}, Time: ${appointments[i].time}, Status: ${appointments[i].status}, Doctor: ${appointments[i].doctor.name}');
+    }
+    
+    final upcoming = _sortAppointmentsByProximity(appointments);
+    print('DEBUG: Upcoming appointments after filtering: ${upcoming.length}');
+    setState(() {
+      _upcomingAppointments = upcoming;
+      _loadingAppointments = false;
+    });
+  }
+
+  List<MyAppointment> _sortAppointmentsByProximity(List<MyAppointment> appointments) {
+    final now = DateTime.now();
+    
+    return appointments.where((appointment) {
+      final status = appointment.status.toLowerCase();
+      final isValidStatus = status == 'confirmed' || status == 'scheduled' || status == 'pending';
+      
+      if (!isValidStatus) {
+        print('DEBUG: Appointment ${appointment.id} filtered - invalid status: $status');
+        return false;
+      }
+
+      final appointmentTime = appointment.appointmentDateTime;
+      if (appointmentTime == null) {
+        print('DEBUG: Appointment ${appointment.id} filtered - invalid date/time');
+        return false;
+      }
+      
+      final isFuture = appointmentTime.isAfter(now);
+      print('DEBUG: Appointment ${appointment.id} date/time: $appointmentTime, Is future: $isFuture');
+      return isFuture;
+    }).toList()..sort((a, b) {
+      final timeA = a.appointmentDateTime;
+      final timeB = b.appointmentDateTime;
+      
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null) return 1;
+      if (timeB == null) return -1;
+      
+      return timeA.compareTo(timeB);
+    });
+  }
+
+  List<MyAppointment> _createSampleAppointments() {
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
+    final nextWeek = now.add(const Duration(days: 7));
+    
+    return [
+      MyAppointment(
+        id: 1001,
+        date: '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}',
+        time: '10:30',
+        status: 'confirmed',
+        reason: 'Regular Checkup',
+        doctor: Doctor(
+          id: 1,
+          name: 'Dr. Sarah Johnson',
+          specialization: 'Cardiology',
+        ),
+        hospitalName: 'City Care Hospital',
+        department: 'Cardiology',
+      ),
+      MyAppointment(
+        id: 1002,
+        date: '${nextWeek.year}-${nextWeek.month.toString().padLeft(2, '0')}-${nextWeek.day.toString().padLeft(2, '0')}',
+        time: '14:00',
+        status: 'scheduled',
+        reason: 'Follow-up Consultation',
+        doctor: Doctor(
+          id: 2,
+          name: 'Dr. Michael Chen',
+          specialization: 'Orthopedics',
+        ),
+        hospitalName: 'Medical Center',
+        department: 'Orthopedics',
+      ),
+      MyAppointment(
+        id: 1003,
+        date: '${now.year}-${now.month.toString().padLeft(2, '0')}-${(now.day + 2).toString().padLeft(2, '0')}',
+        time: '09:00',
+        status: 'confirmed',
+        reason: 'Blood Test Review',
+        doctor: Doctor(
+          id: 3,
+          name: 'Dr. Emily Davis',
+          specialization: 'General Medicine',
+        ),
+        hospitalName: 'Health Plus Clinic',
+        department: 'General Medicine',
+      ),
+    ];
   }
 
   String _getTimeRemaining(String appointmentDate, String appointmentTime) {
@@ -134,12 +273,12 @@ class _PatientDashboardState extends State<PatientDashboard> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Hi, Patient 👋',
+                          'Hi, ${_patientName ?? 'Patient'} 👋',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -153,57 +292,70 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       ],
                     ),
                   ),
-                  Stack(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                  GestureDetector(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
                         ),
-                        padding: const EdgeInsets.all(8),
-                        child: Icon(Icons.notifications_none, color: primaryColor),
-                      ),
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      );
+                      _loadUnreadNotificationCount();
+                    },
+                    child: Stack(
+                      children: [
+                        Container(
                           decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(10),
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          constraints: const BoxConstraints(
-                            minWidth: 20,
-                            minHeight: 20,
-                          ),
-                          child: const Text(
-                            '3',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(Icons.notifications_none, color: primaryColor),
+                        ),
+                        if (_unreadNotificationCount > 0)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 20,
+                                minHeight: 20,
+                              ),
+                              child: Text(
+                                _unreadNotificationCount > 99 ? '99+' : '$_unreadNotificationCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Column(
                   children: [
+                    const SizedBox(height: 12),
+
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
@@ -251,37 +403,44 @@ class _PatientDashboardState extends State<PatientDashboard> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   const Text(
                                     'New to our Hospital?',
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: 18,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 4),
                                   const Text(
                                     'Get your first consultation\nwith a special discount.',
                                     style: TextStyle(
                                       color: Colors.white70,
-                                      fontSize: 12,
+                                      fontSize: 11,
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: primaryColor,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 10,
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    height: 32,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white, // button bg white
+                                        foregroundColor: const Color(0xFF8c6239), // text/icon color
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        minimumSize: const Size(0, 32),
+                                        elevation: 0, // optional (remove shadow)
                                       ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
+                                      onPressed: () {},
+                                      child: const Text('Claim now'),
                                     ),
-                                    onPressed: () {},
-                                    child: const Text('Claim now'),
                                   ),
                                 ],
                               ),
@@ -291,7 +450,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       ),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -326,18 +485,18 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       ),
                     ),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
 
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: _loadingAppointments
                           ? Center(child: CircularProgressIndicator(color: primaryColor))
-                          : _upcomingAppointment == null
+                          : _upcomingAppointments.isEmpty
                               ? _buildNoAppointmentCard()
-                              : _buildAppointmentCard(_upcomingAppointment!),
+                              : _buildAppointmentsCarousel(),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -423,27 +582,17 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       );
                     },
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const BookAppointmentScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(14),
-                      child: const Icon(Icons.add, color: Colors.white),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
                     ),
+                    padding: const EdgeInsets.all(10),
+                    child: const Icon(Icons.add, color: Colors.white),
                   ),
                   _bottomItem(
-                    icon: Icons.local_pharmacy,
-                    label: 'Pharmacy',
+                    icon: Icons.history,
+                    label: 'History',
                     active: false,
                     onTap: () {},
                   ),
@@ -470,44 +619,74 @@ class _PatientDashboardState extends State<PatientDashboard> {
   }
 
   Widget _buildNoAppointmentCard() {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const BookAppointmentScreen(),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 6,
+            offset: Offset(0, 2),
           ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 6,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.add_circle_outline, size: 48, color: Colors.grey.shade300),
-            const SizedBox(height: 12),
-            Text(
-              'No upcoming appointments',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Book now to get started',
-              style: TextStyle(fontSize: 12, color: primaryColor, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
+        ],
       ),
+
+      child: Column(
+        children: [
+          Icon(Icons.add_circle_outline, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 12),
+          Text(
+            'No upcoming appointments',
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppointmentsCarousel() {
+    return Column(
+      children: [
+        slider.CarouselSlider(
+          carouselController: _carouselController,
+          options: slider.CarouselOptions(
+            height: 120,
+            viewportFraction: 0.92,
+            enlargeCenterPage: true,
+            enableInfiniteScroll: false,
+            autoPlay: false,
+          ),
+          items: _upcomingAppointments.map((appointment) {
+            return Builder(
+              builder: (BuildContext context) {
+                return _buildAppointmentCard(appointment);
+              },
+            );
+          }).toList(),
+        ),
+        if (_upcomingAppointments.length > 1)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back_ios, size: 20, color: primaryColor),
+                onPressed: () => _carouselController.previousPage(),
+              ),
+              SizedBox(width: 20),
+              Text(
+                '${_upcomingAppointments.length} appointments',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              SizedBox(width: 20),
+              IconButton(
+                icon: Icon(Icons.arrow_forward_ios, size: 20, color: primaryColor),
+                onPressed: () => _carouselController.nextPage(),
+              ),
+            ],
+          ),
+      ],
     );
   }
 
@@ -537,24 +716,27 @@ class _PatientDashboardState extends State<PatientDashboard> {
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
                 color: bgColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.timelapse, size: 20),
-                  const SizedBox(height: 4),
+                  const Icon(Icons.timelapse, size: 16),
+                  const SizedBox(height: 2),
                   Text(
                     'TK${appointment.id}',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                   if (timeRemaining.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(timeRemaining, style: const TextStyle(fontSize: 10)),
+                    const SizedBox(height: 1),
+                    Text(timeRemaining, style: const TextStyle(fontSize: 8)),
                   ],
                 ],
               ),
@@ -562,6 +744,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center, // ⭐ center vertically
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -582,6 +765,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                     ),
                   ),
                   const SizedBox(height: 4),
+
                   Text(
                     'Dr. ${appointment.doctor.name}',
                     style: const TextStyle(
@@ -589,6 +773,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       color: Colors.grey,
                     ),
                   ),
+
                   if (appointment.hospitalName != null) ...[
                     const SizedBox(height: 2),
                     Text(
@@ -602,6 +787,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                 ],
               ),
             ),
+
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
@@ -634,7 +820,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
   static Widget _serviceItem(IconData icon, String label) {
     const primaryColor = Color(0xFF8c6239);
-
     return Column(
       children: [
         Container(

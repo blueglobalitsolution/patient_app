@@ -86,7 +86,7 @@ class DoctorService {
 
   Future<List<Doctor>> getDoctorsByHospital(int hospitalId) async {
     try {
-      final uri = Uri.parse('${ApiConstants.baseUrl}/api/doctors/?hospital_id=$hospitalId');
+      final uri = Uri.parse('${ApiConstants.baseUrl}/api/doctors/');
       final headers = await _headers(auth: true);
       final response = await _executeWithRefresh(
         () => http.get(uri, headers: headers),
@@ -94,7 +94,8 @@ class DoctorService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Doctor.fromJson(json)).toList();
+        final allDoctors = data.map((json) => Doctor.fromJson(json)).toList();
+        return allDoctors.where((doctor) => doctor.hospitalId == hospitalId).toList();
       } else {
         throw Exception('Failed to load doctors: ${response.statusCode}');
       }
@@ -105,7 +106,7 @@ class DoctorService {
 
   Future<List<Doctor>> getDoctorsByDepartment(int departmentId) async {
     try {
-      final uri = Uri.parse('${ApiConstants.baseUrl}/api/doctors/?department_id=$departmentId');
+      final uri = Uri.parse('${ApiConstants.baseUrl}/api/doctors/');
       final headers = await _headers(auth: true);
       final response = await _executeWithRefresh(
         () => http.get(uri, headers: headers),
@@ -113,7 +114,8 @@ class DoctorService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Doctor.fromJson(json)).toList();
+        final allDoctors = data.map((json) => Doctor.fromJson(json)).toList();
+        return allDoctors.where((doctor) => doctor.departmentId == departmentId).toList();
       } else {
         throw Exception('Failed to load doctors: ${response.statusCode}');
       }

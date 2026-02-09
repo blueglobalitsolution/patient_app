@@ -3,12 +3,16 @@ class SearchHospital {
   final String name;
   final String? department;
   final String? city;
+  final String? type;
+  final String? action;
 
   SearchHospital({
     required this.id,
     required this.name,
     this.department,
     this.city,
+    this.type,
+    this.action,
   });
 
   factory SearchHospital.fromJson(Map<String, dynamic> json) {
@@ -17,6 +21,8 @@ class SearchHospital {
       name: json['name'] ?? '',
       department: json['department'],
       city: json['city'],
+      type: json['type'],
+      action: json['action'],
     );
   }
 }
@@ -28,6 +34,8 @@ class SearchDoctor {
   final String? treatment;
   final int? hospitalId;
   final String? hospitalName;
+  final String? type;
+  final String? action;
 
   SearchDoctor({
     required this.id,
@@ -36,6 +44,8 @@ class SearchDoctor {
     this.treatment,
     this.hospitalId,
     this.hospitalName,
+    this.type,
+    this.action,
   });
 
   factory SearchDoctor.fromJson(Map<String, dynamic> json) {
@@ -46,6 +56,8 @@ class SearchDoctor {
       treatment: json['treatment'],
       hospitalId: json['hospital_id'],
       hospitalName: json['hospital_name'],
+      type: json['type'],
+      action: json['action'],
     );
   }
 }

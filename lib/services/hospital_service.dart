@@ -80,4 +80,17 @@ class HospitalService {
       throw Exception('Network error: $e');
     }
   }
+
+  Future<ApprovedHospital?> getHospitalById(int hospitalId) async {
+    try {
+      final hospitals = await getApprovedHospitals();
+      try {
+        return hospitals.firstWhere((h) => h.id == hospitalId);
+      } catch (e) {
+        return null;
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
 }

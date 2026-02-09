@@ -44,11 +44,10 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
     });
 
     try {
-      final hospitals = await _hospitalService.getApprovedHospitals();
-      final hospital = hospitals.firstWhere(
-        (h) => h.id == widget.hospitalId,
-        orElse: () => throw Exception('Hospital not found'),
-      );
+      final hospital = await _hospitalService.getHospitalById(widget.hospitalId);
+      if (hospital == null) {
+        throw Exception('Hospital not found');
+      }
       _hospital = hospital;
 
       final doctors = await _doctorService.getDoctorsByHospital(widget.hospitalId);
@@ -240,13 +239,6 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
               ),
             ],
           ),
-          if (_hospital!.description != null && _hospital!.description!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              _hospital!.description!,
-              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-            ),
-          ],
           const SizedBox(height: 16),
           _InfoRow(
             icon: Icons.location_on,
@@ -257,13 +249,19 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
           _InfoRow(
             icon: Icons.phone,
             label: 'Phone',
-            value: _hospital!.phone ?? 'Not available',
+            value: _hospital!.pNumber ?? 'Not available',
           ),
           const SizedBox(height: 12),
           _InfoRow(
             icon: Icons.email,
             label: 'Email',
             value: _hospital!.email ?? 'Not available',
+          ),
+          const SizedBox(height: 12),
+          _InfoRow(
+            icon: Icons.category,
+            label: 'Type',
+            value: _hospital!.hospitalType?.join(', ') ?? 'Not available',
           ),
           const SizedBox(height: 16),
           Row(
@@ -295,11 +293,8 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
     if (_hospital!.address != null && _hospital!.address!.isNotEmpty) {
       parts.add(_hospital!.address!);
     }
-    if (_hospital!.state != null && _hospital!.state!.isNotEmpty) {
-      parts.add(_hospital!.state!);
-    }
-    if (_hospital!.pincode != null && _hospital!.pincode!.isNotEmpty) {
-      parts.add(_hospital!.pincode!);
+    if (_hospital!.city != null && _hospital!.city!.isNotEmpty) {
+      parts.add(_hospital!.city!);
     }
     return parts.isEmpty ? 'Not available' : parts.join(', ');
   }
