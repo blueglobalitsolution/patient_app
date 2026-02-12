@@ -49,18 +49,53 @@ class DepartmentService {
   Future<List<Department>> getDepartments() async {
     try {
       final uri = Uri.parse('${ApiConstants.baseUrl}/api/departments/');
+      print('DEBUG: Department API URL: $uri');
+      
       final headers = await _headers(auth: true);
+      print('DEBUG: Department API headers: $headers');
+      
       final response = await _executeWithRefresh(
         () => http.get(uri, headers: headers),
       );
 
+      print('DEBUG: Department API status: ${response.statusCode}');
+      print('DEBUG: Department API response body: ${response.body}');
+
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Department.fromJson(json)).toList();
+        try {
+          final dynamic parsedData = jsonDecode(response.body);
+          print('DEBUG: Parsed JSON data: $parsedData');
+          print('DEBUG: Parsed data type: ${parsedData.runtimeType}');
+          
+          List<dynamic> data;
+          if (parsedData is Map<String, dynamic>) {
+            // Handle case where API returns {"departments": [...]}
+            data = parsedData['departments'] ?? [];
+            print('DEBUG: Extracted departments from object');
+          } else if (parsedData is List) {
+            // Handle case where API returns [...] directly
+            data = parsedData;
+            print('DEBUG: Using direct array response');
+          } else {
+            print('DEBUG: Unexpected response format');
+            data = [];
+          }
+          
+          print('DEBUG: Final department data array: $data');
+          final departments = data.map((json) => Department.fromJson(json)).toList();
+          print('DEBUG: Mapped departments count: ${departments.length}');
+          return departments;
+        } catch (e) {
+          print('DEBUG: JSON parsing error: $e');
+          print('DEBUG: Raw response body: ${response.body}');
+          return [];
+        }
       } else {
+        print('DEBUG: Department API error - Status: ${response.statusCode}, Body: ${response.body}');
         throw Exception('Failed to load departments: ${response.statusCode}');
       }
     } catch (e) {
+      print('DEBUG: Department API exception: $e');
       throw Exception('Network error: $e');
     }
   }

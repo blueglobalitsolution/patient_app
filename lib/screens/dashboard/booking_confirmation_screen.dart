@@ -9,6 +9,7 @@ class BookingConfirmationScreen extends StatelessWidget {
   final String date;
   final String time;
   final String message;
+  final String hospitalName;
 
   const BookingConfirmationScreen({
     super.key,
@@ -18,6 +19,7 @@ class BookingConfirmationScreen extends StatelessWidget {
     required this.date,
     required this.time,
     required this.message,
+    required this.hospitalName,
   });
 
   Color get primaryColor => const Color(0xFF8c6239);
@@ -134,28 +136,55 @@ class BookingConfirmationScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            _InfoRow(
+                            // Doctor + Specialization combined row
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _CombinedInfoColumn(
+                                    icon: Icons.person,
+                                    label: 'Doctor',
+                                    value: doctorName,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _CombinedInfoColumn(
+                                    icon: Icons.medical_services,
+                                    label: 'Specialization',
+                                    value: doctorSpecialization,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Hospital name row
+_InfoRow(
                               icon: Icons.person,
                               label: 'Doctor',
                               value: doctorName,
                             ),
                             const SizedBox(height: 12),
-                            _InfoRow(
-                              icon: Icons.medical_services,
-                              label: 'Specialization',
-                              value: doctorSpecialization,
-                            ),
-                            const SizedBox(height: 12),
-                            _InfoRow(
-                              icon: Icons.calendar_today,
-                              label: 'Date',
-                              value: date,
-                            ),
-                            const SizedBox(height: 12),
-                            _InfoRow(
-                              icon: Icons.access_time,
-                              label: 'Time',
-                              value: time,
+                            // Date + Time combined row
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _CombinedInfoColumn(
+                                    icon: Icons.calendar_today,
+                                    label: 'Date',
+                                    value: date,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _CombinedInfoColumn(
+                                    icon: Icons.access_time,
+                                    label: 'Time',
+                                    value: time,
+                                    key: ValueKey('booking_time_1'),
+                                  ),
+                                ),
+
+                              ],
                             ),
                           ],
                         ),
@@ -242,6 +271,65 @@ class BookingConfirmationScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CombinedInfoColumn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _CombinedInfoColumn({
+    required this.icon,
+    required this.label,
+    required this.value,
+    Key? key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xfff2f2f2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            color: const Color(0xFF8c6239),
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600+
+                  0],
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

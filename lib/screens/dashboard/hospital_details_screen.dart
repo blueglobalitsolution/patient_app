@@ -61,11 +61,15 @@ class _HospitalDetailsScreenState extends State<HospitalDetailsScreen> {
     });
   }
 
-  void _onDoctorTap(Doctor doctor) {
+void _onDoctorTap(Doctor doctor) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BookAppointmentScreen(doctorId: doctor.id),
+        builder: (_) => BookAppointmentScreen(
+          doctorId: doctor.id,
+          hospitalId: widget.hospitalId,
+          hospitalName: widget.hospitalName ?? _hospital?.name,
+        ),
       ),
     );
   }

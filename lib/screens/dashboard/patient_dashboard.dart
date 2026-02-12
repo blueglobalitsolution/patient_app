@@ -7,10 +7,10 @@ import 'package:contact_manager_app/services/patient_service.dart';
 import 'package:contact_manager_app/models/appointment_models.dart';
 import 'search_screen.dart';
 import 'hospital_list_screen.dart';
-import 'book_appointment_screen.dart';
 import 'my_appointments_screen.dart';
 import '../profile_screen.dart';
 import '../notifications_screen.dart';
+import '../booking/department_list_screen.dart';
 
 class PatientDashboard extends StatefulWidget {
   const PatientDashboard({super.key});
@@ -104,7 +104,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
       final appointments = await _storageService.getAppointments();
       print('DEBUG: Total appointments loaded: ${appointments.length}');
       
-      // Add sample appointments if none exist
+// Add sample appointments if none exist
       if (appointments.isEmpty) {
         print('DEBUG: No appointments found, adding sample data...');
         final sampleAppointments = _createSampleAppointments();
@@ -116,6 +116,8 @@ class _PatientDashboardState extends State<PatientDashboard> {
         final updatedAppointments = await _storageService.getAppointments();
         await _processAppointments(updatedAppointments);
       } else {
+        print('DEBUG: First appointment hospital: ${appointments.isNotEmpty ? appointments[0].hospitalName : "NONE"}');
+        print('DEBUG: Second appointment hospital: ${appointments.length > 1 ? appointments[1].hospitalName : "NONE"}');
         await _processAppointments(appointments);
       }
     } catch (e) {
@@ -582,13 +584,24 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       );
                     },
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: primaryColor,
-                      shape: BoxShape.circle,
+InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DepartmentListScreen(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(10),
+                      child: const Icon(Icons.add, color: Colors.white),
                     ),
-                    padding: const EdgeInsets.all(10),
-                    child: const Icon(Icons.add, color: Colors.white),
                   ),
                   _bottomItem(
                     icon: Icons.history,

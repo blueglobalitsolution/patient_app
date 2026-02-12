@@ -30,11 +30,13 @@ class Doctor {
   final int id;
   final String name;
   final String specialization;
+  final String? hospitalName;
 
   Doctor({
     required this.id,
     required this.name,
     required this.specialization,
+    this.hospitalName,
   });
 
   factory Doctor.fromJson(Map<String, dynamic> json) {
@@ -42,6 +44,7 @@ class Doctor {
       id: json['id'],
       name: json['name'] ?? '',
       specialization: json['specialization'] ?? '',
+      hospitalName: json['hospital_name'] ?? json['hospitalName'],
     );
   }
 }

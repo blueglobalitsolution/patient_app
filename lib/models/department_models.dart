@@ -14,8 +14,24 @@ class Department {
   });
 
   factory Department.fromJson(Map<String, dynamic> json) {
+
+    
+    // Handle ID parsing more robustly
+    int? departmentId;
+    if (json['id'] != null) {
+      if (json['id'] is int) {
+        departmentId = json['id'] as int;
+      } else if (json['id'] is double) {
+        // Convert double to int
+        departmentId = (json['id'] as double).toInt();
+        print('DEBUG: Converted double ID to int: ${json['id']} -> $departmentId');
+      } else if (json['id'] is String) {
+        departmentId = int.tryParse(json['id'] as String);
+      }
+    }
+    
     return Department(
-      id: json['id'] ?? 0,
+      id: departmentId ?? 0,
       name: json['name'] ?? '',
       description: json['description'],
       icon: json['icon'],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/appointment_models.dart';
 import '../../services/appointment_service.dart';
 import '../../services/storage_service.dart';
@@ -9,8 +10,10 @@ import 'booking_confirmation_screen.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
   final int? doctorId;
+  final int? hospitalId;
+  final String? hospitalName;
 
-  const BookAppointmentScreen({super.key, this.doctorId});
+  const BookAppointmentScreen({super.key, this.doctorId, this.hospitalId, this.hospitalName});
 
   @override
   State<BookAppointmentScreen> createState() => _BookAppointmentScreenState();
@@ -20,7 +23,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final _service = AppointmentService();
   final _departmentController = TextEditingController(text: 'Cardiology');
   final _reasonController = TextEditingController(text: 'Consultation');
-  final int _hospitalId = 1;
+  late int _hospitalId;
+  String? _passedHospitalName;
 
   bool _loadingDoctors = false;
   bool _loadingSlots = false;
@@ -35,9 +39,12 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
 
-  @override
+@override
   void initState() {
     super.initState();
+    _hospitalId = widget.hospitalId ?? 1;
+    _passedHospitalName = widget.hospitalName;
+    
     if (widget.doctorId != null) {
       _loadDoctorSlots(widget.doctorId!);
     } else {
@@ -72,7 +79,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           _loadingDoctors = false;
         });
       }
-    }
+}
   }
 
   Future<void> _loadSlots(dynamic doctor) async {
@@ -273,7 +280,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           print('Error scheduling reminder: $e');
         }
 
-        Navigator.push(
+final hospitalName = _passedHospitalName ?? doctor.hospitalName ?? 'Hospital';
+
+Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => BookingConfirmationScreen(
@@ -283,6 +292,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
               date: dateValue,
               time: slot.displayTime,
               message: messageValue,
+              hospitalName: hospitalName,
             ),
           ),
         );

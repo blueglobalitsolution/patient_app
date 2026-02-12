@@ -22,12 +22,30 @@ class Treatment {
   });
 
   factory Treatment.fromJson(Map<String, dynamic> json) {
+    // Handle department_id parsing more robustly - check both 'department' and 'department_id'
+    int? departmentId;
+    if (json['department_id'] != null) {
+      if (json['department_id'] is int) {
+        departmentId = json['department_id'] as int;
+      } else if (json['department_id'] is String) {
+        departmentId = int.tryParse(json['department_id'] as String);
+      }
+    } else if (json['department'] != null) {
+      if (json['department'] is int) {
+        departmentId = json['department'] as int;
+      } else if (json['department'] is String) {
+        departmentId = int.tryParse(json['department'] as String);
+      }
+    }
+    
+    print('DEBUG: Parsing treatment - ID: ${json['id']}, department field: ${json['department']}, department_id field: ${json['department_id']}, parsed departmentId: $departmentId');
+    
     return Treatment(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
       description: json['description'],
       category: json['category'],
-      departmentId: json['department_id'],
+      departmentId: departmentId,
       departmentName: json['department_name'],
       estimatedDuration: json['estimated_duration'],
       estimatedDurationUnit: json['estimated_duration_unit'],
