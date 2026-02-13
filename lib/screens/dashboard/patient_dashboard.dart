@@ -265,6 +265,22 @@ class _PatientDashboardState extends State<PatientDashboard> {
     }
   }
 
+  bool _isTodayAppointment(String appointmentDate) {
+    try {
+      final now = DateTime.now();
+      final dateParts = appointmentDate.split('-');
+      if (dateParts.length != 3) return false;
+
+      final year = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final day = int.parse(dateParts[2]);
+
+      return year == now.year && month == now.month && day == now.day;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -637,6 +653,9 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
   Widget _buildAppointmentCard(MyAppointment appointment) {
     final timeRemaining = _getTimeRemaining(appointment.date, appointment.time);
+    final isToday = _isTodayAppointment(appointment.date);
+    final tokenBgColor = isToday ? Colors.green.shade100 : bgColor;
+    final tokenIconColor = isToday ? Colors.green.shade600 : Colors.grey;
 
     return GestureDetector(
       onTap: () {
@@ -667,21 +686,21 @@ class _PatientDashboardState extends State<PatientDashboard> {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: bgColor,
+                color: tokenBgColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.timelapse, size: 16),
+                  Icon(Icons.timelapse, size: 16, color: tokenIconColor),
                   const SizedBox(height: 2),
                   Text(
-                    'TK${appointment.id}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    '${appointment.id}',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isToday ? Colors.green.shade700 : null),
                   ),
                   if (timeRemaining.isNotEmpty) ...[
                     const SizedBox(height: 1),
-                    Text(timeRemaining, style: const TextStyle(fontSize: 8)),
+                    Text(timeRemaining, style: TextStyle(fontSize: 8, color: isToday ? Colors.green.shade600 : null)),
                   ],
                 ],
               ),
@@ -689,19 +708,43 @@ class _PatientDashboardState extends State<PatientDashboard> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center, // ⭐ center vertically
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // NEW: Department Name - Big and primary
                   Text(
-                    appointment.reason.isNotEmpty ? appointment.reason : 'Consultation',
+                    appointment.department?.isNotEmpty == true 
+                        ? appointment.department! 
+                        : 'Consultation',
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
+                  // Doctor Name
+                  Text(
+                    'Dr. ${appointment.doctor.name}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  // Hospital Name
+                  if (appointment.hospitalName != null) ...[
+                    Text(
+                      appointment.hospitalName!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  // Date + Time
                   Text(
                     '${appointment.date} · ${appointment.time}',
                     style: const TextStyle(
@@ -709,26 +752,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       color: Colors.grey,
                     ),
                   ),
-                  const SizedBox(height: 4),
-
-                  Text(
-                    'Dr. ${appointment.doctor.name}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
-                  ),
-
-                  if (appointment.hospitalName != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      appointment.hospitalName!,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -763,7 +786,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
     );
   }
 
-  static Widget _serviceItem(IconData icon, String label) {
+  Widget _serviceItem(IconData icon, String label) {
     const primaryColor = Color(0xFF8c6239);
     return Column(
       children: [

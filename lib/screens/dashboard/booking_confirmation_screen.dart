@@ -10,6 +10,7 @@ class BookingConfirmationScreen extends StatelessWidget {
   final String time;
   final String message;
   final String hospitalName;
+  final String? department;
 
   const BookingConfirmationScreen({
     super.key,
@@ -20,10 +21,27 @@ class BookingConfirmationScreen extends StatelessWidget {
     required this.time,
     required this.message,
     required this.hospitalName,
+    this.department,
   });
 
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
+
+  bool _isToday(String appointmentDate) {
+    try {
+      final now = DateTime.now();
+      final dateParts = appointmentDate.split('-');
+      if (dateParts.length != 3) return false;
+
+      final year = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final day = int.parse(dateParts[2]);
+
+      return year == now.year && month == now.month && day == now.day;
+    } catch (e) {
+      return false;
+    }
+  }
 
   void _copyToClipboard(BuildContext context, String text) {
     Clipboard.setData(ClipboardData(text: text));
@@ -94,71 +112,90 @@ class BookingConfirmationScreen extends StatelessWidget {
                         ),
                         child: Column(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: bgColor,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    'Token Number',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
+                            Builder(
+                              builder: (context) {
+                                final isToday = _isToday(date);
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: isToday ? Colors.green.shade50 : bgColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: isToday ? Border.all(color: Colors.green.shade200, width: 2) : null,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                  child: Column(
                                     children: [
                                       Text(
-                                        '#$tokenNumber',
+                                        isToday ? 'Today\'s Token' : 'Token Number',
                                         style: TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.bold,
-                                          color: primaryColor,
+                                          fontSize: 12,
+                                          color: isToday ? Colors.green.shade700 : Colors.grey[600],
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: () => _copyToClipboard(context, tokenNumber.toString()),
-                                        child: Icon(
-                                          Icons.copy,
-                                          size: 16,
-                                          color: Colors.grey[600],
-                                        ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            '#$tokenNumber',
+                                            style: TextStyle(
+                                              fontSize: 36,
+                                              fontWeight: FontWeight.bold,
+                                              color: isToday ? Colors.green.shade700 : primaryColor,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          GestureDetector(
+                                            onTap: () => _copyToClipboard(context, tokenNumber.toString()),
+                                            child: Icon(
+                                              Icons.copy,
+                                              size: 16,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 16),
-                            // Doctor + Specialization combined row
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _CombinedInfoColumn(
-                                    icon: Icons.person,
-                                    label: 'Doctor',
-                                    value: doctorName,
-                                  ),
+                            // NEW: Department Name - Big and prominent
+                            if (department != null && department!.isNotEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _CombinedInfoColumn(
-                                    icon: Icons.medical_services,
-                                    label: 'Specialization',
-                                    value: doctorSpecialization,
-                                  ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      department!,
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: primaryColor,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
+                            if (department != null && department!.isNotEmpty)
+                              const SizedBox(height: 16),
+                            // NEW: Doctor Name - Prominent
+                            _InfoRow(
+                              icon: Icons.person,
+                              label: 'Doctor',
+                              value: 'Dr. $doctorName',
+                              valueFontSize: 16,
+                              valueFontWeight: FontWeight.w600,
                             ),
                             const SizedBox(height: 12),
-                            // Hospital name row
-_InfoRow(
+                            // NEW: Hospital Name - Below doctor
+                            _InfoRow(
                               icon: Icons.local_hospital,
                               label: 'Hospital',
                               value: hospitalName,
@@ -183,7 +220,6 @@ _InfoRow(
                                     key: ValueKey('booking_time_1'),
                                   ),
                                 ),
-
                               ],
                             ),
                           ],
@@ -338,11 +374,15 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final double? valueFontSize;
+  final FontWeight? valueFontWeight;
 
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
+    this.valueFontSize,
+    this.valueFontWeight,
   });
 
   @override
@@ -377,9 +417,9 @@ class _InfoRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                style: TextStyle(
+                  fontSize: valueFontSize ?? 15,
+                  fontWeight: valueFontWeight ?? FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),

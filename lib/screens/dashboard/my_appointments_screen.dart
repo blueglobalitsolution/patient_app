@@ -21,6 +21,22 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
 
+  bool _isTodayAppointment(String appointmentDate) {
+    try {
+      final now = DateTime.now();
+      final dateParts = appointmentDate.split('-');
+      if (dateParts.length != 3) return false;
+
+      final year = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final day = int.parse(dateParts[2]);
+
+      return year == now.year && month == now.month && day == now.day;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -351,14 +367,34 @@ class _AppointmentCard extends StatelessWidget {
     this.onCancel,
   });
 
+  bool _isTodayAppointment(String appointmentDate) {
+    try {
+      final now = DateTime.now();
+      final dateParts = appointmentDate.split('-');
+      if (dateParts.length != 3) return false;
+
+      final year = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final day = int.parse(dateParts[2]);
+
+      return year == now.year && month == now.month && day == now.day;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isToday = _isTodayAppointment(appointment.date);
+    final todayColor = isToday ? Colors.green : null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: isToday ? Border.all(color: Colors.green.shade300, width: 2) : null,
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
@@ -375,14 +411,14 @@ class _AppointmentCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: appointment.statusColor.withOpacity(0.1),
+                  color: (todayColor ?? appointment.statusColor).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  appointment.statusDisplay,
+                  isToday ? 'Today' : appointment.statusDisplay,
                   style: TextStyle(
                     fontSize: 11,
-                    color: appointment.statusColor,
+                    color: todayColor ?? appointment.statusColor,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -401,6 +437,26 @@ class _AppointmentCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          // NEW: Department Name - Big and prominent
+          if (appointment.department?.isNotEmpty == true)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: isToday ? Colors.green.shade50 : const Color(0xFF8c6239).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: isToday ? Border.all(color: Colors.green.shade200) : null,
+              ),
+              child: Text(
+                appointment.department!,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isToday ? Colors.green.shade700 : const Color(0xFF8c6239),
+                ),
+              ),
+            ),
           Row(
             children: [
               Container(
@@ -418,7 +474,7 @@ class _AppointmentCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      appointment.doctor.name,
+                      'Dr. ${appointment.doctor.name}',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -432,6 +488,16 @@ class _AppointmentCard extends StatelessWidget {
                         color: Colors.grey,
                       ),
                     ),
+                    if (appointment.hospitalName != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        appointment.hospitalName!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

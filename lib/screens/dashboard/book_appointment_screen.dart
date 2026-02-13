@@ -383,6 +383,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 // Use the pre-loaded hospital name
 final hospitalName = _getConsistentHospitalName();
 
+// Get department from controller
+final departmentName = _departmentController.text;
+
 Navigator.push(
           context,
           MaterialPageRoute(
@@ -394,6 +397,7 @@ Navigator.push(
               time: slot.displayTime,
               message: messageValue,
               hospitalName: hospitalName,
+              department: departmentName,
             ),
           ),
         );
