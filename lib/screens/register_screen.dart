@@ -38,114 +38,116 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    "Create an Account",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: primaryColor,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      spreadRadius: 1,
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 30),
-                  buildInput("Full Name", Icons.person_outline, (v) => fullName = v!, "Enter your full name"),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: buildInputDecoration("Email", Icons.email_outlined),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
-                        return 'Please enter a valid email address';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) => email = value ?? '',
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    keyboardType: TextInputType.phone,
-                    decoration: buildInputDecoration("Phone Number", Icons.phone_outlined),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your phone number';
-                      }
-                      if (value.length != 10 || int.tryParse(value) == null) {
-                        return 'Phone number must be 10 digits';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) => phoneNumber = value ?? '',
-                  ),
-                  const SizedBox(height: 16),
-                  buildInput("Address", Icons.location_on_outlined, (v) => address = v!, "Enter your address"),
-                  const SizedBox(height: 16),
-                  buildInput("Age", Icons.cake_outlined, (v) => age = v!, "Enter your age"),
-                  const SizedBox(height: 16),
-                  buildGenderDropdown(),
-                  const SizedBox(height: 16),
-                  buildPasswordInput(),
-                  const SizedBox(height: 30),
-                  _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            minimumSize: const Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      "Create an Account",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    buildInput("Full Name", Icons.person_outline, (v) => fullName = v!, "Enter your full name"),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: buildInputDecoration("Email", Icons.email_outlined),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your email';
+                        }
+                        if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
+                          return 'Please enter a valid email address';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => email = value ?? '',
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      keyboardType: TextInputType.phone,
+                      decoration: buildInputDecoration("Phone Number", Icons.phone_outlined),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your phone number';
+                        }
+                        if (value.length != 10 || int.tryParse(value) == null) {
+                          return 'Phone number must be 10 digits';
+                        }
+                        return null;
+                      },
+                      onSaved: (value) => phoneNumber = value ?? '',
+                    ),
+                    const SizedBox(height: 12),
+                    buildInput("Address", Icons.location_on_outlined, (v) => address = v!, "Enter your address"),
+                    const SizedBox(height: 12),
+                    buildInput("Age", Icons.cake_outlined, (v) => age = v!, "Enter your age"),
+                    const SizedBox(height: 12),
+                    buildGenderDropdown(),
+                    const SizedBox(height: 12),
+                    buildPasswordInput(),
+                    const SizedBox(height: 20),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              minimumSize: const Size(double.infinity, 50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
+                            child: const Text(
+                              'Register',
+                              style: TextStyle(fontSize: 16, color: Colors.white),
+                            ),
+                            onPressed: _handleRegister,
                           ),
-                          child: const Text(
-                            'Register',
-                            style: TextStyle(fontSize: 16, color: Colors.white),
-                          ),
-                          onPressed: _handleRegister,
-                        ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text("Already have an account? ", style: TextStyle(color: Colors.grey)),
+                  TextButton(
+                    child: Text(
+                      "Login",
+                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      );
+                    },
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text("Already have an account? ", style: TextStyle(color: Colors.grey)),
-                TextButton(
-                  child: Text(
-                    "Login",
-                    style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
-                  ),
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
