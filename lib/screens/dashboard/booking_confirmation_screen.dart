@@ -136,7 +136,7 @@ class BookingConfirmationScreen extends StatelessWidget {
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           Text(
-                                            '#$tokenNumber',
+                                            '${tokenNumber.toString().padLeft(2, '0')}',
                                             style: TextStyle(
                                               fontSize: 36,
                                               fontWeight: FontWeight.bold,

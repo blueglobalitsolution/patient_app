@@ -105,21 +105,16 @@ class _PatientDashboardState extends State<PatientDashboard> {
       final appointments = await _storageService.getAppointments();
       print('DEBUG: Total appointments loaded: ${appointments.length}');
       
-// Add sample appointments if none exist
-      if (appointments.isEmpty) {
-        print('DEBUG: No appointments found, adding sample data...');
-        final sampleAppointments = _createSampleAppointments();
-        for (final appointment in sampleAppointments) {
-          await _storageService.saveAppointment(appointment);
-        }
-        print('DEBUG: Added ${sampleAppointments.length} sample appointments');
-        // Reload appointments after adding samples
-        final updatedAppointments = await _storageService.getAppointments();
-        await _processAppointments(updatedAppointments);
-      } else {
+      // Just load appointments without adding sample data
+      if (appointments.isNotEmpty) {
         print('DEBUG: First appointment hospital: ${appointments.isNotEmpty ? appointments[0].hospitalName : "NONE"}');
         print('DEBUG: Second appointment hospital: ${appointments.length > 1 ? appointments[1].hospitalName : "NONE"}');
         await _processAppointments(appointments);
+      } else {
+        setState(() {
+          _upcomingAppointments = [];
+          _loadingAppointments = false;
+        });
       }
     } catch (e) {
       print('DEBUG: Could not load appointments: $e');
@@ -176,95 +171,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
     });
   }
 
-  List<MyAppointment> _createSampleAppointments() {
-    final now = DateTime.now();
-    final tomorrow = now.add(const Duration(days: 1));
-    final nextWeek = now.add(const Duration(days: 7));
-    
-    return [
-      MyAppointment(
-        id: 1001,
-        date: '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}',
-        time: '10:30',
-        status: 'confirmed',
-        reason: 'Regular Checkup',
-        doctor: Doctor(
-          id: 1,
-          name: 'Dr. Sarah Johnson',
-          specialization: 'Cardiology',
-        ),
-        hospitalName: 'City Care Hospital',
-        department: 'Cardiology',
-      ),
-      MyAppointment(
-        id: 1002,
-        date: '${nextWeek.year}-${nextWeek.month.toString().padLeft(2, '0')}-${nextWeek.day.toString().padLeft(2, '0')}',
-        time: '14:00',
-        status: 'scheduled',
-        reason: 'Follow-up Consultation',
-        doctor: Doctor(
-          id: 2,
-          name: 'Dr. Michael Chen',
-          specialization: 'Orthopedics',
-        ),
-        hospitalName: 'Medical Center',
-        department: 'Orthopedics',
-      ),
-      MyAppointment(
-        id: 1003,
-        date: '${now.year}-${now.month.toString().padLeft(2, '0')}-${(now.day + 2).toString().padLeft(2, '0')}',
-        time: '09:00',
-        status: 'confirmed',
-        reason: 'Blood Test Review',
-        doctor: Doctor(
-          id: 3,
-          name: 'Dr. Emily Davis',
-          specialization: 'General Medicine',
-        ),
-        hospitalName: 'Health Plus Clinic',
-        department: 'General Medicine',
-      ),
-    ];
-  }
-
-  String _getTimeRemaining(String appointmentDate, String appointmentTime) {
-    try {
-      final now = DateTime.now();
-      final dateParts = appointmentDate.split('-');
-      if (dateParts.length != 3) return '';
-
-      final year = int.parse(dateParts[0]);
-      final month = int.parse(dateParts[1]);
-      final day = int.parse(dateParts[2]);
-
-      final timeParts = appointmentTime.split(':');
-      if (timeParts.length < 2) return '';
-
-      final hour = int.parse(timeParts[0]);
-      final minute = int.parse(timeParts[1]);
-
-      final appointmentDateTime = DateTime(year, month, day, hour, minute);
-      final difference = appointmentDateTime.difference(now);
-
-      if (difference.isNegative) return 'Past';
-
-      final days = difference.inDays;
-      final hours = difference.inHours % 24;
-
-      if (days > 0) {
-        return '${days}D ${hours}h';
-      } else if (hours > 0) {
-        final minutes = difference.inMinutes % 60;
-        return '${hours}h ${minutes}m';
-      } else {
-        return '${difference.inMinutes}m';
-      }
-    } catch (e) {
-      print('DEBUG: Error calculating time remaining: $e');
-      return '';
-    }
-  }
-
   bool _isTodayAppointment(String appointmentDate) {
     try {
       final now = DateTime.now();
@@ -276,6 +182,23 @@ class _PatientDashboardState extends State<PatientDashboard> {
       final day = int.parse(dateParts[2]);
 
       return year == now.year && month == now.month && day == now.day;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  bool _isTomorrowAppointment(String appointmentDate) {
+    try {
+      final now = DateTime.now();
+      final tomorrow = now.add(const Duration(days: 1));
+      final dateParts = appointmentDate.split('-');
+      if (dateParts.length != 3) return false;
+
+      final year = int.parse(dateParts[0]);
+      final month = int.parse(dateParts[1]);
+      final day = int.parse(dateParts[2]);
+
+      return year == tomorrow.year && month == tomorrow.month && day == tomorrow.day;
     } catch (e) {
       return false;
     }
@@ -368,6 +291,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                 ],
               ),
             ),
+            const SizedBox(width: 12),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -652,10 +576,8 @@ class _PatientDashboardState extends State<PatientDashboard> {
   }
 
   Widget _buildAppointmentCard(MyAppointment appointment) {
-    final timeRemaining = _getTimeRemaining(appointment.date, appointment.time);
     final isToday = _isTodayAppointment(appointment.date);
-    final tokenBgColor = isToday ? Colors.green.shade100 : bgColor;
-    final tokenIconColor = isToday ? Colors.green.shade600 : Colors.grey;
+    final isTomorrow = _isTomorrowAppointment(appointment.date);
 
     return GestureDetector(
       onTap: () {
@@ -683,25 +605,48 @@ class _PatientDashboardState extends State<PatientDashboard> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 60,
-              height: 60,
+              width: 70,
+              height: 85,
               decoration: BoxDecoration(
-                color: tokenBgColor,
-                borderRadius: BorderRadius.circular(12),
+                color: isToday ? Colors.green.shade100 : bgColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: isToday ? [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ] : null,
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.timelapse, size: 16, color: tokenIconColor),
+                  Text(
+                    'Token',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: isToday ? Colors.green.shade600 : Colors.grey,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Text(
-                    '${appointment.id}',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isToday ? Colors.green.shade700 : null),
+                    '${appointment.id.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: isToday ? Colors.green.shade700 : primaryColor,
+                    ),
                   ),
-                  if (timeRemaining.isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(timeRemaining, style: TextStyle(fontSize: 8, color: isToday ? Colors.green.shade600 : null)),
-                  ],
+                  const SizedBox(height: 2),
+                  Text(
+                    isToday ? 'In Progress' : (isTomorrow ? 'Upcoming' : ''),
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                      color: isToday ? Colors.green.shade700 : isTomorrow ? Colors.orange.shade700 : Colors.transparent,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -711,51 +656,62 @@ class _PatientDashboardState extends State<PatientDashboard> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // NEW: Department Name - Big and primary
                   Text(
                     appointment.department?.isNotEmpty == true 
                         ? appointment.department! 
                         : 'Consultation',
                     style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Colors.grey,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  // Doctor Name
+                  const SizedBox(height: 2),
                   Text(
-                    'Dr. ${appointment.doctor.name}',
+                    ' ${appointment.doctor.name}',
                     style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 2),
-                  // Hospital Name
                   if (appointment.hospitalName != null) ...[
-                    Text(
-                      appointment.hospitalName!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                    Row(
+                      children: [
+                        Icon(Icons.local_hospital, size: 12, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            appointment.hospitalName!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 2),
                   ],
-                  // Date + Time
-                  Text(
-                    '${appointment.date} · ${appointment.time}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today, size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${appointment.date} · ${appointment.time}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
@@ -769,7 +725,7 @@ class _PatientDashboardState extends State<PatientDashboard> {
                     height: 6,
                     decoration: BoxDecoration(
                       color: appointment.statusColor,
-                       shape: BoxShape.circle,
+                      shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 6),
