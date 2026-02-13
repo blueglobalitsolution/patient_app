@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/patient_models.dart';
 import '../services/patient_service.dart';
 import 'dashboard/patient_dashboard.dart';
+import '../widgets/custom_bottom_navigation_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -400,6 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
+
     );
   }
 }

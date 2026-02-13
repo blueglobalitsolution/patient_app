@@ -11,6 +11,7 @@ import 'my_appointments_screen.dart';
 import '../profile_screen.dart';
 import '../notifications_screen.dart';
 import '../booking/department_list_screen.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
 
 class PatientDashboard extends StatefulWidget {
   const PatientDashboard({super.key});
@@ -550,80 +551,11 @@ class _PatientDashboardState extends State<PatientDashboard> {
               ),
             ),
 
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 6,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _bottomItem(
-                    icon: Icons.home,
-                    label: 'Home',
-                    active: true,
-                    onTap: () {},
-                  ),
-                  _bottomItem(
-                    icon: Icons.local_hospital,
-                    label: 'Hospital',
-                    active: false,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HospitalListScreen(),
-                        ),
-                      );
-                    },
-                  ),
-InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DepartmentListScreen(),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(30),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(10),
-                      child: const Icon(Icons.add, color: Colors.white),
-                    ),
-                  ),
-                  _bottomItem(
-                    icon: Icons.history,
-                    label: 'History',
-                    active: false,
-                    onTap: () {},
-                  ),
-                  _bottomItem(
-                    icon: Icons.person,
-                    label: 'Profile',
-                    active: false,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+            CustomBottomNavigationBar(
+              currentIndex: 0,
+              onTap: (index) {
+                // Handle navigation if needed
+              },
             ),
           ],
         ),
@@ -814,7 +746,7 @@ InkWell(
                     height: 6,
                     decoration: BoxDecoration(
                       color: appointment.statusColor,
-                      shape: BoxShape.circle,
+                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -856,30 +788,4 @@ InkWell(
     );
   }
 
-  static Widget _bottomItem({
-    required IconData icon,
-    required String label,
-    required bool active,
-    VoidCallback? onTap,
-  }) {
-    const primaryColor = Color(0xFF8c6239);
-
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: active ? primaryColor : Colors.grey),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: active ? primaryColor : Colors.grey,
-          ),
-        ),
-      ],
-    );
-
-    if (onTap == null) return content;
-    return GestureDetector(onTap: onTap, child: content);
-  }
 }

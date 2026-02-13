@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/department_models.dart';
+import '../models/doctor_models.dart';
 import 'storage_service.dart';
 import 'auth_service.dart';
+import 'doctor_service.dart';
 import '../utils/constants.dart';
 
 class DepartmentService {
   final StorageService _storage = StorageService();
   final AuthService _auth = AuthService();
+  final DoctorService _doctorService = DoctorService();
 
   bool _isRefreshing = false;
 
@@ -97,6 +100,42 @@ class DepartmentService {
     } catch (e) {
       print('DEBUG: Department API exception: $e');
       throw Exception('Network error: $e');
+    }
+  }
+
+  Future<List<Department>> getDepartmentsByHospital(int hospitalId) async {
+    try {
+      print('DEBUG: Getting departments for hospital $hospitalId using doctor relationships');
+      
+      // Step 1: Get all doctors for this hospital
+      final doctors = await _doctorService.getDoctorsByHospital(hospitalId);
+      print('DEBUG: Found ${doctors.length} doctors for hospital $hospitalId');
+      
+      // Step 2: Get all departments from API
+      final allDepartments = await getDepartments();
+      print('DEBUG: Found ${allDepartments.length} total departments');
+      
+      // Step 3: Extract unique department IDs from doctors in this hospital
+      final hospitalDepartmentIds = doctors
+          .where((d) => d.departmentId != null)
+          .map((d) => d.departmentId!)
+          .toSet();
+      print('DEBUG: Hospital has ${hospitalDepartmentIds.length} unique department IDs');
+      
+      // Step 4: Filter departments that have doctors in this hospital
+      final hospitalDepartments = allDepartments
+          .where((dept) => hospitalDepartmentIds.contains(dept.id))
+          .where((d) => d.isActive)
+          .toList();
+      
+      print('DEBUG: Final hospital departments count: ${hospitalDepartments.length}');
+      return hospitalDepartments;
+      
+    } catch (e) {
+      print('DEBUG: Error getting hospital departments: $e');
+      // Fallback to all departments if something goes wrong
+      final allDepartments = await getDepartments();
+      return allDepartments.where((d) => d.isActive).toList();
     }
   }
 }

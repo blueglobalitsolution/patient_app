@@ -6,6 +6,7 @@ import 'patient_dashboard.dart';
 import 'search_screen.dart';
 import 'book_appointment_screen.dart';
 import '../profile_screen.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
 
 class HospitalListScreen extends StatefulWidget {
   const HospitalListScreen({super.key});
@@ -77,10 +78,9 @@ class _HospitalListScreenState extends State<HospitalListScreen> {
                       ? _buildErrorView()
                       : _buildHospitalList(),
             ),
-          ],
-        ),
+        ],
       ),
-      bottomNavigationBar: _bottomNavigation(),
+      ),
     );
   }
 
@@ -308,20 +308,23 @@ class _HospitalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final primaryColor = const Color(0xFF8c6239);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
         children: [
           if (hospital.logo != null && hospital.logo!.isNotEmpty)
             Container(
@@ -420,6 +423,7 @@ class _HospitalCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

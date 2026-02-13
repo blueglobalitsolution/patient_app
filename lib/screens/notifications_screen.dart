@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/appointment_models.dart';
 import '../services/storage_service.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -47,145 +48,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  Future<void> _markAsRead(LocalNotification notification) async {
-    if (notification.isRead) return;
-
-    try {
-      await _storageService.markLocalNotificationAsRead(notification.id);
-
-      setState(() {
-        final index = _notifications.indexWhere((n) => n.id == notification.id);
-        if (index != -1) {
-          _notifications[index] = LocalNotification(
-            id: notification.id,
-            title: notification.title,
-            message: notification.message,
-            isRead: true,
-            createdAt: notification.createdAt,
-            type: notification.type,
-            appointmentId: notification.appointmentId,
-          );
-        }
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to mark notification as read: $e')),
-        );
-      }
-    }
-  }
-
-  void _showNotificationBottomSheet(LocalNotification notification) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.4,
-        minChildSize: 0.3,
-        maxChildSize: 0.8,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: _getNotificationColor(notification.type).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Icon(
-                              _getNotificationIcon(notification.type),
-                              color: _getNotificationColor(notification.type),
-                              size: 24,
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  notification.title,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey[800],
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  _formatDate(notification.createdAt.toIso8601String()),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 20),
-                      Text(
-                        notification.message,
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Colors.grey[700],
-                          height: 1.5,
-                        ),
-                      ),
-                      SizedBox(height: 24),
-                      if (!notification.isRead)
-                        ElevatedButton(
-                          onPressed: () {
-                            _markAsRead(notification);
-                            Navigator.pop(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                            minimumSize: Size(double.infinity, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: Text('Mark as Read'),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -224,50 +86,80 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 );
               },
             ),
-          if (_notifications.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_sweep, color: Colors.white),
-              onPressed: _clearAllNotifications,
-            ),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _notifications.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.notifications_none,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No notifications',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
+              ? const Center(
+                  child: Text(
+                    'No notifications',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
                   ),
                 )
-              : RefreshIndicator(
-                  onRefresh: _loadNotifications,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _notifications.length,
-                    itemBuilder: (context, index) {
-                      final notification = _notifications[index];
-                      return _NotificationCard(
-                        notification: notification,
-                        onTap: () => _showNotificationBottomSheet(notification),
-                      );
-                    },
-                  ),
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _notifications.length,
+                  itemBuilder: (context, index) {
+                    final notification = _notifications[index];
+                    return _buildNotificationCard(notification);
+                  },
                 ),
+      bottomNavigationBar: CustomBottomNavigationBar(
+        currentIndex: 3, // History position
+        onTap: (index) {
+          // Handle navigation if needed
+        },
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard(LocalNotification notification) {
+    final isAppointment = notification.type.toLowerCase() == 'appointment' || 
+                         notification.type.toLowerCase() == 'booking';
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: _getNotificationColor(notification.type),
+          child: Icon(
+            _getNotificationIcon(notification.type),
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          notification.title,
+          style: TextStyle(
+            fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
+          ),
+        ),
+        subtitle: Text(notification.message),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _formatDate(notification.createdAt),
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            if (isAppointment) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                onPressed: () => _deleteNotification(notification.id!),
+                tooltip: 'Delete notification',
+              ),
+            ],
+          ],
+        ),
+        onTap: () {
+          if (!notification.isRead) {
+            _markAsRead(notification.id!);
+          }
+        },
+      ),
     );
   }
 
@@ -280,12 +172,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _loadNotifications();
   }
 
-  Future<void> _clearAllNotifications() async {
+  Future<void> _markAsRead(int notificationId) async {
+    try {
+      await _storageService.markLocalNotificationAsRead(notificationId);
+      _loadNotifications();
+    } catch (e) {
+      print('Failed to mark notification as read: $e');
+    }
+  }
+
+  Future<void> _deleteNotification(int notificationId) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear All'),
-        content: const Text('Clear all notifications?'),
+        title: const Text('Delete Notification'),
+        content: const Text('Are you sure you want to delete this notification?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -293,7 +194,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Clear'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -302,36 +204,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (confirm != true) return;
 
     try {
-      await _storageService.clearAllLocalNotifications();
+      await _storageService.deleteLocalNotification(notificationId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All notifications cleared')),
+          const SnackBar(content: Text('Notification deleted')),
         );
       }
       _loadNotifications();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to clear notifications: $e')),
+          SnackBar(content: Text('Failed to delete notification: $e')),
         );
       }
-    }
-  }
-  }
-
-  Color _getNotificationColor(String? type) {
-    switch (type?.toLowerCase()) {
-      case 'appointment':
-      case 'booking':
-        return const Color(0xFF4CAF50);
-      case 'cancel':
-      case 'cancelled':
-      case 'reminder':
-        return const Color(0xFFF44336);
-      case 'medical':
-        return const Color(0xFF2196F3);
-      default:
-        return const Color(0xFF8c6239);
     }
   }
 
@@ -339,146 +224,52 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     switch (type?.toLowerCase()) {
       case 'appointment':
       case 'booking':
-        return Icons.calendar_month;
-      case 'cancel':
-      case 'cancelled':
-        return Icons.cancel;
+        return Icons.calendar_today;
+      case 'payment':
+        return Icons.payment;
       case 'reminder':
-        return Icons.alarm;
-      case 'medical':
-        return Icons.medical_services;
+        return Icons.notification_important;
+      case 'system':
+        return Icons.info;
       default:
         return Icons.notifications;
     }
   }
 
-  String _formatDate(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      final now = DateTime.now();
-      final difference = now.difference(date);
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
 
-      if (difference.inDays > 7) {
-        return '${date.day}/${date.month}/${date.year}';
-      } else if (difference.inDays > 0) {
-        return '${difference.inDays} days ago';
-      } else if (difference.inHours > 0) {
-        return '${difference.inHours} hours ago';
-      } else if (difference.inMinutes > 0) {
-        return '${difference.inMinutes} minutes ago';
-      } else {
-        return 'Just now';
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) {
+          return 'Just now';
+        }
+        return '${difference.inMinutes}m ago';
       }
-    } catch (e) {
-      return dateStr;
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
     }
   }
 
-  class _NotificationCard extends StatelessWidget {
-    final LocalNotification notification;
-    final VoidCallback onTap;
-
-    const _NotificationCard({
-      required this.notification,
-      required this.onTap,
-    });
-
-    Color get primaryColor => const Color(0xFF8c6239);
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: notification.isRead ? Colors.white : Colors.blue[50],
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: notification.isRead ? Colors.transparent : primaryColor.withOpacity(0.3),
-            width: notification.isRead ? 0 : 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: _getNotificationColor(notification.type).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: Icon(
-                _getNotificationIcon(notification.type),
-                color: _getNotificationColor(notification.type),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          notification.title,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
-                            color: Colors.grey[800],
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (!notification.isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notification.message,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                   Text(
-                     _formatDate(notification.createdAt.toIso8601String()),
-                     style: TextStyle(
-                       fontSize: 11,
-                       color: Colors.grey[500],
-                     ),
-                   ),
-
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Color _getNotificationColor(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'appointment':
+      case 'booking':
+        return const Color(0xFF4CAF50);
+      case 'payment':
+        return const Color(0xFFFF9800);
+      case 'reminder':
+        return const Color(0xFF2196F3);
+      case 'system':
+        return const Color(0xFF9C27B0);
+      default:
+        return Colors.grey;
+    }
   }
 }

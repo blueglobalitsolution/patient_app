@@ -4,6 +4,7 @@ import '../../services/department_service.dart';
 import '../../services/treatment_service.dart';
 import '../../utils/department_icon_mapper.dart';
 import 'treatment_list_screen.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
 
 class DepartmentListScreen extends StatefulWidget {
   const DepartmentListScreen({super.key});
@@ -94,6 +95,12 @@ class _DepartmentListScreenState extends State<DepartmentListScreen> {
         elevation: 0,
       ),
       body: _buildBody(),
+      bottomNavigationBar: CustomBottomNavigationBar(
+        currentIndex: 2, // + button position
+        onTap: (index) {
+          // Handle navigation if needed
+        },
+      ),
     );
   }
 

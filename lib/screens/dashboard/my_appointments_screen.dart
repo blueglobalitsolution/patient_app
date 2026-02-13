@@ -4,6 +4,7 @@ import '../../services/storage_service.dart';
 import '../../services/notification_service.dart';
 import 'patient_dashboard.dart';
 import 'book_appointment_screen.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
 
 class MyAppointmentsScreen extends StatefulWidget {
   const MyAppointmentsScreen({super.key});
@@ -461,8 +462,8 @@ class _AppointmentCard extends StatelessWidget {
               fontSize: 12,
               color: Colors.grey,
             ),
-          ),
-        ],
+           ),
+          ],
       ),
     );
   }

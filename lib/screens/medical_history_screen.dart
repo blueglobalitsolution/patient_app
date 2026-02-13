@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/patient_models.dart';
 import '../services/patient_service.dart';
 import 'dashboard/patient_dashboard.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
 
 class MedicalHistoryScreen extends StatefulWidget {
   const MedicalHistoryScreen({super.key});
@@ -244,7 +245,7 @@ class _MedicalRecordCard extends StatelessWidget {
                 ),
               ),
             ),
-        ],
+         ],
       ),
     );
   }

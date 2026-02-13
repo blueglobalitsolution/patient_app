@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/appointment_models.dart';
+import '../../models/doctor_models.dart' as dm;
 import '../../services/appointment_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/hospital_service.dart';
 import 'patient_dashboard.dart';
 import 'hospital_list_screen.dart';
 import 'booking_confirmation_screen.dart';
@@ -21,10 +23,12 @@ class BookAppointmentScreen extends StatefulWidget {
 
 class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   final _service = AppointmentService();
+  final _hospitalService = HospitalService();
   final _departmentController = TextEditingController(text: 'Cardiology');
   final _reasonController = TextEditingController(text: 'Consultation');
   late int _hospitalId;
-  String? _passedHospitalName;
+  String? _hospitalName;
+  bool _loadingHospital = false;
 
   bool _loadingDoctors = false;
   bool _loadingSlots = false;
@@ -39,17 +43,92 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
 
-@override
+  @override
   void initState() {
     super.initState();
     _hospitalId = widget.hospitalId ?? 1;
-    _passedHospitalName = widget.hospitalName;
+    _loadHospitalName();
     
     if (widget.doctorId != null) {
       _loadDoctorSlots(widget.doctorId!);
     } else {
       _loadDoctors();
     }
+  }
+
+  Future<void> _loadHospitalName() async {
+    setState(() {
+      _loadingHospital = true;
+    });
+    
+    try {
+      final hospital = await _hospitalService.getHospitalById(_hospitalId);
+      setState(() {
+        _hospitalName = hospital?.name ?? widget.hospitalName ?? 'Hospital';
+        _loadingHospital = false;
+      });
+    } catch (e) {
+      setState(() {
+        _hospitalName = widget.hospitalName ?? 'Hospital';
+        _loadingHospital = false;
+      });
+    }
+  }
+
+  /// Validates that the selected doctor belongs to the current hospital
+  bool _validateDoctorHospitalAssociation(dynamic doctor) {
+    // For DoctorDetails model, we don't have hospitalId field
+    if (doctor is DoctorDetails) {
+      // Validate by comparing hospital name if available
+      if (doctor.hospitalName != null && _hospitalName != null) {
+        final matches = doctor.hospitalName!.toLowerCase() == _hospitalName!.toLowerCase();
+        if (!matches) {
+          print('WARNING: Doctor hospital name "${doctor.hospitalName}" != selected hospital name "$_hospitalName"');
+        }
+        return matches;
+      }
+      return true; // Can't validate without hospitalId
+    }
+    
+    // For Doctor model, validate by hospitalId
+    if (doctor is dm.Doctor) {
+      final doctorHospitalId = doctor.hospitalId;
+      if (doctorHospitalId != null) {
+        final isValid = doctorHospitalId == _hospitalId;
+        if (!isValid) {
+          print('ERROR: Doctor hospital ID ($doctorHospitalId) != selected hospital ID ($_hospitalId)');
+        }
+        return isValid;
+      }
+    }
+    
+    return true; // Can't validate without hospitalId
+  }
+
+  /// Gets consistent hospital name with proper fallback hierarchy
+  String _getConsistentHospitalName() {
+    // Priority 1: Hospital API name (most reliable)
+    if (_hospitalName != null && _hospitalName!.isNotEmpty) {
+      return _hospitalName!;
+    }
+    
+    // Priority 2: Widget parameter (passed from previous screen)
+    if (widget.hospitalName != null && widget.hospitalName!.isNotEmpty) {
+      return widget.hospitalName!;
+    }
+    
+    // Priority 3: Selected doctor's hospital (only if validated)
+    if (_selectedDoctor != null && _validateDoctorHospitalAssociation(_selectedDoctor)) {
+      final doctor = _selectedDoctor is DoctorDetails 
+          ? _selectedDoctor 
+          : _selectedDoctor as dm.Doctor;
+      if (doctor.hospitalName != null && doctor.hospitalName!.isNotEmpty) {
+        return doctor.hospitalName!;
+      }
+    }
+    
+    // Priority 4: Fallback
+    return 'Hospital';
   }
 
   Future<void> _loadDoctors() async {
@@ -90,7 +169,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       _selectedDay = null;
       _selectedSlot = null;
     });
+    
     try {
+      // Validate doctor belongs to current hospital before proceeding
+      if (!_validateDoctorHospitalAssociation(doctor)) {
+        throw Exception('This doctor is not associated with the selected hospital');
+      }
+      
       final doctorId = doctor is Doctor ? doctor.id : doctor.id;
       final days = await _service.fetchSlots(
         doctorId,
@@ -107,7 +192,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load slots: $e')),
+          SnackBar(
+            content: Text('Failed to load slots: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -146,6 +234,12 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     try {
       final response = await _service.fetchMobileDoctorSlots(doctorId);
       print('DEBUG: Loaded ${response.days.length} days');
+      
+      // Validate doctor belongs to current hospital
+      if (!_validateDoctorHospitalAssociation(response.doctor)) {
+        throw Exception('This doctor is not associated with the selected hospital');
+      }
+      
       for (var day in response.days) {
         print('DEBUG: Day ${day.label} (${day.date}) has ${day.slots.length} slots');
         for (var slot in day.slots) {
@@ -164,7 +258,10 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       print('DEBUG: Error loading slots: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load doctor slots: $e')),
+          SnackBar(
+            content: Text('Failed to load doctor slots: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -212,6 +309,9 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
         final dateValue = response['date']?.toString() ?? '';
         final messageValue = response['message']?.toString() ?? 'Appointment booked successfully';
 
+        // Use consistent hospital name from single source of truth
+        final consistentHospitalName = _getConsistentHospitalName();
+        
         final appointment = MyAppointment(
           id: tokenNum,
           date: dateValue.isNotEmpty ? dateValue : _selectedDay?.date ?? '',
@@ -223,7 +323,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
             name: doctor.name,
             specialization: doctor.specialization ?? '',
           ),
-          hospitalName: doctor.hospitalName,
+          hospitalName: consistentHospitalName,
           department: _departmentController.text,
         );
 
@@ -280,7 +380,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           print('Error scheduling reminder: $e');
         }
 
-final hospitalName = _passedHospitalName ?? doctor.hospitalName ?? 'Hospital';
+// Use the pre-loaded hospital name
+final hospitalName = _getConsistentHospitalName();
 
 Navigator.push(
           context,

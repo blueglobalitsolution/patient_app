@@ -6,6 +6,8 @@ import '../../models/doctor_models.dart';
 import '../../services/appointment_service.dart';
 import '../../services/doctor_service.dart';
 import '../dashboard/book_appointment_screen.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
+import '../../widgets/custom_bottom_navigation_bar.dart';
 
 class DoctorByTreatmentScreen extends StatefulWidget {
   final Treatment treatment;
@@ -95,6 +97,12 @@ class _DoctorByTreatmentScreenState extends State<DoctorByTreatmentScreen> {
         elevation: 0,
       ),
       body: _buildBody(),
+      bottomNavigationBar: CustomBottomNavigationBar(
+        currentIndex: 2, // + button position (booking flow)
+        onTap: (index) {
+          // Handle navigation if needed
+        },
+      ),
     );
   }
 

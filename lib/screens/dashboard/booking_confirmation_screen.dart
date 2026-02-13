@@ -159,9 +159,9 @@ class BookingConfirmationScreen extends StatelessWidget {
                             const SizedBox(height: 12),
                             // Hospital name row
 _InfoRow(
-                              icon: Icons.person,
-                              label: 'Doctor',
-                              value: doctorName,
+                              icon: Icons.local_hospital,
+                              label: 'Hospital',
+                              value: hospitalName,
                             ),
                             const SizedBox(height: 12),
                             // Date + Time combined row
