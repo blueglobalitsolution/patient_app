@@ -301,31 +301,43 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search doctor or medicines',
-                          prefixIcon: Icon(Icons.search, color: primaryColor),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SearchScreen(),
+                            ),
+                          );
+                        },
+                        child: AbsorbPointer(
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'Search doctor or medicines',
+                              prefixIcon: Icon(Icons.search, color: primaryColor),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            onSubmitted: (query) {
+                              if (query.trim().isNotEmpty) {
+                                print('DEBUG: Search submitted from dashboard: ${query.trim()}');
+                                print('DEBUG: Current city: ${UserDataService().cityName}');
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => SearchScreen(initialQuery: query.trim()),
+                                  ),
+                                );
+                              }
+                            },
                           ),
                         ),
-                        onSubmitted: (query) {
-                          if (query.trim().isNotEmpty) {
-                            print('DEBUG: Search submitted from dashboard: ${query.trim()}');
-                            print('DEBUG: Current city: ${UserDataService().cityName}');
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SearchScreen(initialQuery: query.trim()),
-                              ),
-                            );
-                          }
-                        },
                       ),
                     ),
 

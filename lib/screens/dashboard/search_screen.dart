@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'package:contact_manager_app/services/search_service.dart';
 import 'package:contact_manager_app/services/location_service.dart';
 import 'package:contact_manager_app/services/user_data_service.dart';
@@ -24,6 +25,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final SearchService _searchService = SearchService();
   final LocationService _locationService = LocationService();
   final TextEditingController _searchController = TextEditingController();
+  Timer? _debounceTimer;
 
   SearchResult? _searchResult;
   bool _searching = false;
@@ -46,7 +48,15 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _performSearch(value);
+    });
   }
 
   Future<void> _initializeScreen() async {
@@ -479,16 +489,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         vertical: 12,
                       ),
                     ),
-                    onChanged: (value) {
-                      if (value.length >= 2) {
-                        _performSearch(value);
-                      } else if (value.isEmpty) {
-                        setState(() {
-                          _searchResult = null;
-                          _resolvedKeyword = null;
-                        });
-                      }
-                    },
+                    onChanged: _onSearchChanged,
                     onSubmitted: _performSearch,
                   ),
                 ),
@@ -855,76 +856,77 @@ class _ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final primaryColor = const Color(0xFF8c6239);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xfff2f2f2),
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 6,
+              offset: Offset(0, 2),
             ),
-            child: Icon(icon, color: Colors.grey),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xfff2f2f2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: Colors.grey),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 32,
+              child: ElevatedButton(
+                onPressed: onTap,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
+                child: Text(
+                  isDoctor ? 'Book' : 'View',
                   style: const TextStyle(
                     fontSize: 11,
-                    color: Colors.grey,
+                    color: Colors.white,
                   ),
                 ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          SizedBox(
-            height: 32,
-            child: ElevatedButton(
-              onPressed: onTap,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                isDoctor ? 'Book' : 'View',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.white,
-                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
