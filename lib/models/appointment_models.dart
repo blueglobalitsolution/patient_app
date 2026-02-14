@@ -279,7 +279,8 @@ class MyAppointment {
         } else {
           hour = baseHour;
         }
-      } else {
+      }
+      else {
         final timeParts = time.split(':');
         if (timeParts.length != 2) return null;
         hour = int.tryParse(timeParts[0]);
@@ -294,7 +295,8 @@ class MyAppointment {
       
       if (year == null || month == null || day == null) return null;
       
-      return DateTime(year, month, day, hour, minute);
+      return DateTime(year,
+          month, day, hour, minute);
     } catch (e) {
       return null;
     }

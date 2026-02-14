@@ -212,6 +212,7 @@ class _DepartmentListScreenState extends State<DepartmentListScreen> {
           ),
         ),
         child: Stack(
+          alignment: Alignment.center,
           children: [
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
