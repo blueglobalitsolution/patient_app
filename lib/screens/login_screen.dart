@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 import '../services/location_service.dart';
@@ -25,6 +26,29 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   Color get primaryColor => const Color(0xFF8c6239);
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLocationPermissionOnStart();
+  }
+
+  Future<void> _checkLocationPermissionOnStart() async {
+    // Give the UI a moment to build before showing a SnackBar
+    await Future.delayed(const Duration(seconds: 1));
+
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location services are disabled.')),
+      );
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+  }
 
   @override
   void dispose() {
@@ -58,55 +82,68 @@ class _LoginScreenState extends State<LoginScreen> {
       },
     );
 
-    final result = await _authService.login(
-      _emailController.text,
-      _passwordController.text,
-    );
-
-    if (!mounted) return;
-
-    Navigator.of(context).pop(); // Dismiss dialog
-
-    if (result['success'] == true) {
-      await _storage.saveTokens(
-        result['access'] as String,
-        result['refresh'] as String,
+    try {
+      final loginFuture = _authService.login(
+        _emailController.text,
+        _passwordController.text,
       );
+      
+      final locationFuture = _locationService.getCurrentLocation().then((pos) {
+        return _locationService.getCityName(pos.latitude, pos.longitude).then((city) => {
+          'latitude': pos.latitude,
+          'longitude': pos.longitude,
+          'city': city,
+        });
+      }).catchError((_) => null); // Prevent location errors from stopping login
 
-      try {
-        final position = await _locationService.getCurrentLocation();
-        final city = await _locationService.getCityName(position.latitude, position.longitude);
+      final results = await Future.wait([loginFuture, locationFuture]);
 
-        UserDataService().latitude = position.latitude;
-        UserDataService().longitude = position.longitude;
-        UserDataService().cityName = city;
+      final loginResult = results[0] as Map<String, dynamic>; 
 
-        print('DEBUG: Location saved after login - City: $city');
-      } catch (e) {
-        print('DEBUG: Could not get location: $e');
-      }
+      if (!mounted) return;
+      Navigator.of(context).pop();
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => PatientDashboard()),
+      if (loginResult['success'] == true) {
+        await _storage.saveTokens(
+          loginResult['access'] as String,
+          loginResult['refresh'] as String,
         );
-      }
-    } else {
-      String errorMessage = result['error'] ?? 'Login failed';
 
-      // The backend gives a generic error for both wrong email and password.
-      // To show "Email is not registered" or "Invalid Password", the backend API would need to change
-      // to provide more specific error codes or messages.
-      if (errorMessage.contains('No active account found')) {
-        errorMessage = 'Invalid email or password.';
-      }
+        final locationResult = results[1] as Map<String, dynamic>?; 
+        if(locationResult != null) {
+          UserDataService().latitude = locationResult['latitude'];
+          UserDataService().longitude = locationResult['longitude'];
+          UserDataService().cityName = locationResult['city'];
+          print('DEBUG: Location saved after login - City: ${locationResult['city']}');
+        } else {
+           print('DEBUG: Could not get location during login.');
+        }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => PatientDashboard()),
+          );
+        }
+      } else {
+        String errorMessage = loginResult['error'] ?? 'Login failed';
+
+        if (errorMessage.contains('No active account found')) {
+          errorMessage = 'Invalid email or password.';
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+        }
       }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: $e')),
+      );
     }
   }
 
@@ -128,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF2EAE4), // A bit darker
+                          color: const Color(0xFFF2EAE4),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Icon(

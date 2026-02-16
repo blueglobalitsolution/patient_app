@@ -343,10 +343,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    color: Colors.white
                                   ),
                                 )
-                              : const Text('Save'),
+                              : const Text('Save',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                     ],
