@@ -405,51 +405,51 @@ class _PatientDashboardState extends State<PatientDashboard> {
                       ),
                     ),
 
-                    const SizedBox(height: 20),
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Upcoming Consultation',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const MyAppointmentsScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'View All',
+                    if (_loadingAppointments)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Center(child: CircularProgressIndicator(color: primaryColor)),
+                      )
+                    else if (_upcomingAppointments.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Upcoming Consultation',
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blueAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
-                        ],
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const MyAppointmentsScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'View All',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blueAccent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: _loadingAppointments
-                          ? Center(child: CircularProgressIndicator(color: primaryColor))
-                          : _upcomingAppointments.isEmpty
-                              ? _buildNoAppointmentCard()
-                              : _buildAppointmentsCarousel(),
-                    ),
+                      const SizedBox(height: 6),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _buildAppointmentsCarousel(),
+                      ),
+                    ],
 
                     const SizedBox(height: 12),
 
@@ -511,34 +511,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildNoAppointmentCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-
-      child: Column(
-        children: [
-          Icon(Icons.add_circle_outline, size: 48, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text(
-            'No upcoming appointments',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-          ),
-        ],
       ),
     );
   }
@@ -778,5 +750,4 @@ class _PatientDashboardState extends State<PatientDashboard> {
       ],
     );
   }
-
 }
