@@ -441,15 +441,24 @@ Navigator.push(
     }
   }
 
-  Map<String, List<Slot>> _groupSlotsByShift(List<Slot> slots, {DateTime? selectedDate}) {
+  DateTime? _parseDate(String? dateStr) {
+    if (dateStr == null) return null;
+    try {
+      return DateTime.parse(dateStr);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Map<String, List<Slot>> _groupSlotsByShift(List<Slot> slots) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final isToday = selectedDate != null &&
-        DateTime(selectedDate.year, selectedDate.month, selectedDate.day).isAtSameMomentAs(today);
+    final dateToCheck = _selectedDate ?? _parseDate(_selectedDay?.date);
+    final isToday = dateToCheck != null &&
+        DateTime(dateToCheck.year, dateToCheck.month, dateToCheck.day).isAtSameMomentAs(today);
 
     print('DEBUG: _groupSlotsByShift - Current time: $now');
-    print('DEBUG: _groupSlotsByShift - Selected date: $selectedDate');
-    print('DEBUG: _groupSlotsByShift - Today: $today');
+    print('DEBUG: _groupSlotsByShift - Date to check: $dateToCheck');
     print('DEBUG: _groupSlotsByShift - Is today: $isToday');
     print('DEBUG: _groupSlotsByShift - Processing ${slots.length} slots');
 
@@ -790,7 +799,7 @@ Navigator.push(
       );
     }
 
-    final shiftGroups = _groupSlotsByShift(selectedDaySlots, selectedDate: _selectedDate);
+    final shiftGroups = _groupSlotsByShift(selectedDaySlots);
     print('DEBUG: Shift groups: ${shiftGroups.keys}');
     
     final shifts = ['Morning', 'Afternoon', 'Evening'];

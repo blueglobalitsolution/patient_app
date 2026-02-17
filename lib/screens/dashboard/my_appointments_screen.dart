@@ -86,71 +86,6 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
     });
   }
 
-  Future<void> _cancelAppointment(MyAppointment appointment) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Appointment'),
-        content: Text('Are you sure you want to cancel appointment with ${appointment.doctor.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      try {
-        await NotificationService().cancelAppointmentReminder(appointment.id);
-      } catch (e) {
-        print('Error cancelling reminder: $e');
-      }
-
-      await _storage.deleteAppointment(appointment.id);
-
-      try {
-        final cancelNotificationId = (appointment.id * 100) + 2;
-        await NotificationService().showLocalNotification(
-          id: cancelNotificationId,
-          title: 'Appointment Cancelled',
-          body: 'Your appointment has been cancelled.',
-          payload: '{"type": "cancel", "appointmentId": ${appointment.id}}',
-        );
-        await _storage.saveLocalNotification(LocalNotification(
-          id: cancelNotificationId,
-          title: 'Appointment Cancelled',
-          message: 'Your appointment has been cancelled.',
-          type: 'cancelled',
-          createdAt: DateTime.now(),
-          appointmentId: appointment.id,
-        ));
-      } catch (e) {
-        print('Error sending cancel notification: $e');
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Appointment cancelled successfully')),
-        );
-        _loadAppointments();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to cancel appointment: $e')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -248,10 +183,6 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
                               final appointment = _appointments[index];
                               return _AppointmentCard(
                                 appointment: appointment,
-                                onCancel: appointment.status.toLowerCase() != 'completed' && 
-                                           appointment.status.toLowerCase() != 'cancelled'
-                                    ? () => _cancelAppointment(appointment)
-                                    : null,
                               );
                             },
                           ),
@@ -360,11 +291,9 @@ class _MyAppointmentsScreenState extends State<MyAppointmentsScreen> {
 
 class _AppointmentCard extends StatelessWidget {
   final MyAppointment appointment;
-  final VoidCallback? onCancel;
 
   const _AppointmentCard({
     required this.appointment,
-    this.onCancel,
   });
 
   bool _isTodayAppointment(String appointmentDate) {
@@ -424,16 +353,6 @@ class _AppointmentCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (onCancel != null)
-                TextButton.icon(
-                  onPressed: onCancel,
-                  icon: const Icon(Icons.cancel, size: 16),
-                  label: const Text('Cancel'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 12),

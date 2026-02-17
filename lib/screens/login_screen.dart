@@ -170,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Icon(
                           Icons.medical_services_outlined,
-                          size: 60,
+                          size: 40,
                           color: primaryColor,
                         ),
                       ),
