@@ -684,11 +684,14 @@ class _PatientDashboardState extends State<PatientDashboard> {
                     children: [
                       Icon(Icons.calendar_today, size: 12, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(
-                        '${appointment.date} · ${appointment.time}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+                      Flexible(
+                        child: Text(
+                          '${appointment.date} · ${appointment.time}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],

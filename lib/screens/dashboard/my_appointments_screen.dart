@@ -393,7 +393,7 @@ class _AppointmentCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Dr. ${appointment.doctor.name}',
+                      '${appointment.doctor.name}',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,

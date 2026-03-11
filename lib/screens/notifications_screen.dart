@@ -60,6 +60,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          if (_notifications.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep, color: Colors.white),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete All Notifications'),
+                    content: const Text('Are you sure you want to delete all notifications?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _deleteAllNotifications();
+                        },
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Delete All'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              tooltip: 'Delete all notifications',
+            ),
           if (_notifications.any((n) => !n.isRead))
             IconButton(
               icon: const Icon(Icons.mark_email_read, color: Colors.white),
@@ -170,6 +198,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       print('Failed to mark all notifications as read: $e');
     }
     _loadNotifications();
+  }
+
+  Future<void> _deleteAllNotifications() async {
+    try {
+      await _storageService.clearAllLocalNotifications();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All notifications deleted')),
+        );
+      }
+      _loadNotifications();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete notifications: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _markAsRead(int notificationId) async {
