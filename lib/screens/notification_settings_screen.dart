@@ -175,7 +175,7 @@ class _NotificationSettingsScreenState
       onPressed: () async {
         try {
           await _notificationService.showLocalNotification(
-            id: DateTime.now().millisecondsSinceEpoch,
+            id: DateTime.now().millisecondsSinceEpoch & 0x7FFFFFFF,
             title: 'Test Notification',
             body: 'This is a test notification from your Patient App',
           );

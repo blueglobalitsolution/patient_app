@@ -88,13 +88,19 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
       
-      final locationFuture = _locationService.getCurrentLocation().then((pos) {
-        return _locationService.getCityName(pos.latitude, pos.longitude).then((city) => {
-          'latitude': pos.latitude,
-          'longitude': pos.longitude,
-          'city': city,
-        });
-      }).catchError((_) => null); // Prevent location errors from stopping login
+      final locationFuture = () async {
+        try {
+          final pos = await _locationService.getCurrentLocation();
+          final city = await _locationService.getCityName(pos.latitude, pos.longitude);
+          return <String, dynamic>{
+            'latitude': pos.latitude,
+            'longitude': pos.longitude,
+            'city': city,
+          };
+        } catch (_) {
+          return null;
+        }
+      }();
 
       final results = await Future.wait([loginFuture, locationFuture]);
 
@@ -223,6 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
                             decoration: InputDecoration(
                               hintText: 'name@example.com',
                               border: OutlineInputBorder(
@@ -260,6 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
+                            autofillHints: const [AutofillHints.password],
                             decoration: InputDecoration(
                               hintText: 'Enter your password',
                               border: OutlineInputBorder(

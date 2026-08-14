@@ -9,6 +9,7 @@ import '../../services/hospital_service.dart';
 import 'patient_dashboard.dart';
 import 'hospital_list_screen.dart';
 import 'booking_confirmation_screen.dart';
+import '../../services/patient_service.dart';
 
 class BookAppointmentScreen extends StatefulWidget {
   final int? doctorId;
@@ -39,6 +40,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   SlotDay? _selectedDay;
   DateTime? _selectedDate;
   Slot? _selectedSlot;
+  String? _patientName;
 
   Color get primaryColor => const Color(0xFF8c6239);
   Color get bgColor => const Color(0xfff2f2f2);
@@ -48,11 +50,23 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     super.initState();
     _hospitalId = widget.hospitalId ?? 1;
     _loadHospitalName();
+    _loadPatientProfile();
     
     if (widget.doctorId != null) {
       _loadDoctorSlots(widget.doctorId!);
     } else {
       _loadDoctors();
+    }
+  }
+
+  Future<void> _loadPatientProfile() async {
+    try {
+      final profile = await PatientService().getProfile();
+      setState(() {
+        _patientName = profile.fullName;
+      });
+    } catch (e) {
+      print('DEBUG: Could not load patient profile: $e');
     }
   }
 
@@ -1105,19 +1119,19 @@ Navigator.push(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Hi, Patient 👋',
-                              style: TextStyle(
+                              'Hi, ${_patientName ?? 'Patient'} 👋',
+                              style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            SizedBox(height: 4),
-                            Text(
+                            const SizedBox(height: 4),
+                            const Text(
                               'Stay safe and follow your doctor\'s advice',
                               style: TextStyle(fontSize: 12, color: Colors.grey),
                             ),

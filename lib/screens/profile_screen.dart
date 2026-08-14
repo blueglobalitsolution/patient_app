@@ -3,6 +3,9 @@ import '../models/patient_models.dart';
 import '../services/patient_service.dart';
 import 'dashboard/patient_dashboard.dart';
 import '../widgets/custom_bottom_navigation_bar.dart';
+import 'medical_history_screen.dart';
+import 'notification_settings_screen.dart';
+import 'reset_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -352,6 +355,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Column(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            ListTile(
+                              leading: Icon(Icons.history, color: primaryColor),
+                              title: const Text('Medical History'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const MedicalHistoryScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: Icon(Icons.notifications_active, color: primaryColor),
+                              title: const Text('Notification Settings'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const NotificationSettingsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                            const Divider(height: 1),
+                            ListTile(
+                              leading: Icon(Icons.lock_open, color: primaryColor),
+                              title: const Text('Reset Password'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ResetPasswordScreen(
+                                      uidb64: 'mock_uid',
+                                      token: 'mock_token',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ],
